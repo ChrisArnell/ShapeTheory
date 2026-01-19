@@ -17,7 +17,7 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
 
   // Commit form state
   const [showCommitForm, setShowCommitForm] = useState(false)
-  const [selectedContent, setSelectedContent] = useState<{ id: string; title: string; content_type: string } | null>(null)
+  const [selectedContent, setSelectedContent] = useState<{ id: string | null; title: string; content_type: string } | null>(null)
   const [predictedEnjoyment, setPredictedEnjoyment] = useState(7)
   const [moodBefore, setMoodBefore] = useState('')
   const [committing, setCommitting] = useState(false)

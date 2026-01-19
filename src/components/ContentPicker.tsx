@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { searchContent, addContent, getWeightedPredictionForContent } from '@/lib/db'
 
 interface ContentPickerProps {
-  onSelect: (content: { id: string; title: string; content_type: string; isNew?: boolean }) => void
+  onSelect: (content: { id: string | null; title: string; content_type: string; isNew?: boolean }) => void
   userShape?: Record<string, number>
   placeholder?: string
   contentType?: string
@@ -36,6 +36,23 @@ export default function ContentPicker({
 
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Auto-select typed text as new content when user moves away from input
+  const handleBlur = () => {
+    // Small delay to allow click events on dropdown to fire first
+    setTimeout(() => {
+      if (query.trim() && !selectedContent) {
+        // User typed something but didn't select - treat as new content
+        const newContentType = contentType || 'show'
+        onSelect({
+          id: null, // Will be created when saving
+          title: query.trim(),
+          content_type: newContentType,
+          isNew: true
+        })
+      }
+    }, 200)
+  }
 
   // Debounced search
   useEffect(() => {
@@ -145,6 +162,7 @@ export default function ContentPicker({
               setSelectedContent(null)
             }}
             onFocus={() => results.length > 0 && setShowDropdown(true)}
+            onBlur={handleBlur}
             placeholder={placeholder}
             className="w-full p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
           />
