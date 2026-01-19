@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions } from '@/lib/db'
+import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
 import ShapeRadar from '@/components/ShapeRadar'
 import ActivePredictions from '@/components/ActivePredictions'
@@ -19,6 +19,15 @@ interface LocalPrediction {
   dbId?: string  // database ID once locked in
 }
 
+interface CompletedPrediction {
+  id: string
+  title: string
+  content_type: string
+  predicted_enjoyment: number
+  actual_enjoyment: number
+  completed_at: string
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -29,6 +38,10 @@ export default function Home() {
   const [input, setInput] = useState('')
   const [shapeUpdated, setShapeUpdated] = useState(false)
   const [activePredictions, setActivePredictions] = useState<LocalPrediction[]>([])
+  const [completedPredictions, setCompletedPredictions] = useState<CompletedPrediction[]>([])
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [showAppInfo, setShowAppInfo] = useState(false)
+  const [showAbreInfo, setShowAbreInfo] = useState(false)
 
   // Check auth state on mount
   useEffect(() => {
@@ -73,6 +86,19 @@ export default function Home() {
           predicted_enjoyment: p.predicted_enjoyment,
           status: 'locked' as const,
           predicted_at: p.predicted_at
+        })))
+      }
+
+      // Load completed predictions for history
+      const completed = await getCompletedPredictions(user.id)
+      if (completed && completed.length > 0) {
+        setCompletedPredictions(completed.map((p: any) => ({
+          id: p.id,
+          title: p.content?.title || 'Unknown',
+          content_type: p.content?.content_type || 'other',
+          predicted_enjoyment: p.predicted_enjoyment,
+          actual_enjoyment: p.actual_enjoyment,
+          completed_at: p.completed_at
         })))
       }
     }
@@ -217,6 +243,17 @@ export default function Home() {
 
     const success = await recordOutcome(prediction.dbId, actual)
     if (success) {
+      // Add to completed predictions
+      setCompletedPredictions(prev => [{
+        id: prediction.dbId!,
+        title: prediction.title,
+        content_type: prediction.content_type,
+        predicted_enjoyment: prediction.predicted_enjoyment,
+        actual_enjoyment: actual,
+        completed_at: new Date().toISOString()
+      }, ...prev])
+
+      // Remove from active
       setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
     }
   }
@@ -267,7 +304,79 @@ export default function Home() {
       </div>
       
       {user && (
-        <p className="text-sm text-gray-500 mb-8">{user.email}</p>
+        <div className="flex items-center gap-4 mb-8">
+          <p className="text-sm text-gray-500">{user.email}</p>
+          <button
+            onClick={() => setShowAppInfo(true)}
+            className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            What is this?
+          </button>
+          <button
+            onClick={() => setShowAbreInfo(true)}
+            className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            Who is Abre?
+          </button>
+        </div>
+      )}
+
+      {/* App Info Popup */}
+      {showAppInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAppInfo(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">What is Shape Theory?</h2>
+            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+              <p>
+                Shape Theory maps your entertainment preferences across 10 dimensions — not genres, but <em>how</em> you experience content.
+              </p>
+              <p>
+                Things like your tolerance for darkness, need for intellectual engagement, appreciation for craft, and comfort with vulnerability.
+              </p>
+              <p>
+                Your "shape" predicts what you'll enjoy better than genre labels ever could. A folk album and a prestige drama might share more DNA than two comedies.
+              </p>
+              <p>
+                As you rate content and refine your shape, we learn from users with similar shapes to make better predictions — closing the loop between recommendation and outcome.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAppInfo(false)}
+              className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Abre Info Popup */}
+      {showAbreInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAbreInfo(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">Who is Abre?</h2>
+            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+              <p>
+                <strong>Abre</strong> (AH-bray) is your guide through Shape Theory. The name means "opens" in Spanish and Portuguese — and as an imperative, it's a gentle command: <em>open</em>.
+              </p>
+              <p>
+                That's what Abre is here to do: open you to new experiences, open connections between you and people whose shapes resemble yours, and open your understanding of why you connect with what you do.
+              </p>
+              <p>
+                Abre is warm but direct, curious about patterns, and genuinely invested in getting recommendations right for you. She'll ask questions, propose shape adjustments, and always be honest when something's a tricky call.
+              </p>
+              <p>
+                Think of her as a friend who happens to be obsessed with dimensional analysis of entertainment — and wants to help you find your next favorite thing.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAbreInfo(false)}
+              className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       )}
 
       {!user ? (
@@ -373,6 +482,75 @@ export default function Home() {
               onDelete={handleDeletePrediction}
             />
           </div>
+
+          {/* Prediction History */}
+          {completedPredictions.length > 0 && (
+            <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setHistoryExpanded(!historyExpanded)}
+                className="w-full px-4 py-3 flex justify-between items-center bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <span className="font-medium">
+                  Prediction History ({completedPredictions.length})
+                </span>
+                <span className="text-gray-500">
+                  {historyExpanded ? '▲' : '▼'}
+                </span>
+              </button>
+
+              {historyExpanded && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Title</th>
+                        <th className="px-4 py-2 text-center">Predicted</th>
+                        <th className="px-4 py-2 text-center">Actual</th>
+                        <th className="px-4 py-2 text-center">Match</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completedPredictions.map((pred) => {
+                        const diff = Math.abs(pred.predicted_enjoyment - pred.actual_enjoyment)
+                        const isHit = diff <= 1
+                        return (
+                          <tr key={pred.id} className="border-t dark:border-gray-700">
+                            <td className="px-4 py-2">{pred.title}</td>
+                            <td className="px-4 py-2 text-center">{pred.predicted_enjoyment}</td>
+                            <td className="px-4 py-2 text-center">{pred.actual_enjoyment}</td>
+                            <td className="px-4 py-2 text-center">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                isHit
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                              }`}>
+                                {isHit ? `+/- ${diff}` : `off by ${diff}`}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* Accuracy Summary */}
+                  <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-sm">
+                    {(() => {
+                      const hits = completedPredictions.filter(p =>
+                        Math.abs(p.predicted_enjoyment - p.actual_enjoyment) <= 1
+                      ).length
+                      const accuracy = Math.round((hits / completedPredictions.length) * 100)
+                      return (
+                        <span>
+                          <strong>{accuracy}%</strong> accuracy ({hits}/{completedPredictions.length} within +/- 1 point)
+                        </span>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Reset Shape */}
           <button
