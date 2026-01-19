@@ -177,18 +177,18 @@ export default function Home() {
         })
       }
 
-      // If Abre created a prediction, add it to suggestions
-      if (data.newPrediction) {
-        const newPred: LocalPrediction = {
-          id: `suggested-${Date.now()}`,
-          title: data.newPrediction.title,
-          content_type: data.newPrediction.content_type,
-          predicted_enjoyment: data.newPrediction.predicted_enjoyment,
-          match_percent: data.newPrediction.match_percent,
-          reasoning: data.newPrediction.reasoning,
-          status: 'suggested'
-        }
-        setActivePredictions(prev => [...prev, newPred])
+      // If Abre created predictions, add them to suggestions
+      if (data.newPredictions && data.newPredictions.length > 0) {
+        const newPreds: LocalPrediction[] = data.newPredictions.map((pred: any, idx: number) => ({
+          id: `suggested-${Date.now()}-${idx}`,
+          title: pred.title,
+          content_type: pred.content_type,
+          predicted_enjoyment: pred.predicted_enjoyment,
+          match_percent: pred.match_percent,
+          reasoning: pred.reasoning,
+          status: 'suggested' as const
+        }))
+        setActivePredictions(prev => [...prev, ...newPreds])
       }
 
       setChatMessages([...newMessages, { role: 'assistant', content: data.response }])
