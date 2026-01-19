@@ -6,8 +6,7 @@ interface Prediction {
   id: string
   title: string
   content_type: string
-  predicted_enjoyment: number
-  match_percent?: number
+  hit_probability: number
   status: 'suggested' | 'locked' | 'completed'
   predicted_at?: string
 }
@@ -16,7 +15,7 @@ interface ActivePredictionsProps {
   predictions: Prediction[]
   onLockIn: (prediction: Prediction) => void
   onDismiss: (predictionId: string) => void
-  onRecordOutcome: (predictionId: string, actual: number) => void
+  onRecordOutcome: (predictionId: string, outcome: 'hit' | 'miss' | 'fence') => void
   onDelete: (predictionId: string) => void
 }
 
@@ -27,8 +26,7 @@ export default function ActivePredictions({
   onRecordOutcome,
   onDelete
 }: ActivePredictionsProps) {
-  const [ratingFor, setRatingFor] = useState<string | null>(null)
-  const [ratingValue, setRatingValue] = useState<number>(5)
+  const [showOutcomeFor, setShowOutcomeFor] = useState<string | null>(null)
 
   const suggested = predictions.filter(p => p.status === 'suggested')
   const locked = predictions.filter(p => p.status === 'locked')
@@ -64,7 +62,7 @@ export default function ActivePredictions({
                 <span>{contentTypeIcon(pred.content_type)}</span>
                 <span className="font-medium text-sm">{pred.title}</span>
                 <span className="text-xs text-blue-600 dark:text-blue-400">
-                  {pred.predicted_enjoyment}/10
+                  {pred.hit_probability}%
                 </span>
                 <button
                   onClick={() => onLockIn(pred)}
@@ -97,32 +95,42 @@ export default function ActivePredictions({
                 <span>{contentTypeIcon(pred.content_type)}</span>
                 <span className="font-medium text-sm">{pred.title}</span>
                 <span className="text-xs text-green-600 dark:text-green-400">
-                  {pred.predicted_enjoyment}/10
+                  {pred.hit_probability}%
                 </span>
 
-                {ratingFor === pred.id ? (
+                {showOutcomeFor === pred.id ? (
                   <div className="flex items-center gap-1">
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={ratingValue}
-                      onChange={(e) => setRatingValue(Number(e.target.value))}
-                      className="w-16 h-1"
-                    />
-                    <span className="text-xs w-4">{ratingValue}</span>
                     <button
                       onClick={() => {
-                        onRecordOutcome(pred.id, ratingValue)
-                        setRatingFor(null)
+                        onRecordOutcome(pred.id, 'hit')
+                        setShowOutcomeFor(null)
                       }}
                       className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
                     >
-                      ✓
+                      Hit
                     </button>
                     <button
-                      onClick={() => setRatingFor(null)}
-                      className="text-xs text-gray-400 hover:text-gray-600"
+                      onClick={() => {
+                        onRecordOutcome(pred.id, 'fence')
+                        setShowOutcomeFor(null)
+                      }}
+                      className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
+                      title="Use sparingly - for genuine ambiguity"
+                    >
+                      Fence
+                    </button>
+                    <button
+                      onClick={() => {
+                        onRecordOutcome(pred.id, 'miss')
+                        setShowOutcomeFor(null)
+                      }}
+                      className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                    >
+                      Miss
+                    </button>
+                    <button
+                      onClick={() => setShowOutcomeFor(null)}
+                      className="text-xs text-gray-400 hover:text-gray-600 ml-1"
                     >
                       ✕
                     </button>
@@ -130,10 +138,7 @@ export default function ActivePredictions({
                 ) : (
                   <>
                     <button
-                      onClick={() => {
-                        setRatingFor(pred.id)
-                        setRatingValue(pred.predicted_enjoyment)
-                      }}
+                      onClick={() => setShowOutcomeFor(pred.id)}
                       className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
                     >
                       Done?

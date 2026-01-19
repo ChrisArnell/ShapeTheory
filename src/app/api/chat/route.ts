@@ -69,20 +69,16 @@ const tools: Anthropic.Messages.Tool[] = [
           enum: ["movie", "show", "album", "song", "podcast", "comedy_special", "other"],
           description: "The type of content"
         },
-        predicted_enjoyment: {
+        hit_probability: {
           type: "number",
-          description: "Your prediction for how much they'll enjoy it (1-10)"
-        },
-        match_percent: {
-          type: "number",
-          description: "The match percentage you quoted (0-100)"
+          description: "Probability (0-100) that this will 'hit' - meet their needs in this moment given their shape and mood. Be calibrated: 80% should hit 80% of the time."
         },
         reasoning: {
           type: "string",
-          description: "Brief note about why this match level"
+          description: "Brief note about why this probability level"
         }
       },
-      required: ["title", "content_type", "predicted_enjoyment", "match_percent"]
+      required: ["title", "content_type", "hit_probability"]
     }
   }
 ]
@@ -239,8 +235,7 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
     let newPredictions: {
       title: string
       content_type: string
-      predicted_enjoyment: number
-      match_percent: number
+      hit_probability: number
       reasoning?: string
     }[] = []
 
@@ -258,8 +253,7 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
           newPredictions.push(block.input as {
             title: string
             content_type: string
-            predicted_enjoyment: number
-            match_percent: number
+            hit_probability: number
             reasoning?: string
           })
         }
@@ -282,8 +276,8 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
           } else if (block.name === 'save_user_mood') {
             resultContent = `Mood saved: ${moodUpdate}. Now give them a recommendation that fits this mood and their shape.`
           } else if (block.name === 'create_prediction') {
-            const pred = block.input as { title: string; predicted_enjoyment: number }
-            resultContent = `Prediction locked in! ${pred.title} added to their active list with your ${pred.predicted_enjoyment}/10 prediction.`
+            const pred = block.input as { title: string; hit_probability: number }
+            resultContent = `Prediction locked in! ${pred.title} added to their active list at ${pred.hit_probability}% probability.`
           }
           toolResultMessages.push({
             type: 'tool_result',

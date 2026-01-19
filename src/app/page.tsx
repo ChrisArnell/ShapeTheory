@@ -11,8 +11,7 @@ interface LocalPrediction {
   id: string
   title: string
   content_type: string
-  predicted_enjoyment: number
-  match_percent?: number
+  hit_probability: number
   reasoning?: string
   status: 'suggested' | 'locked' | 'completed'
   predicted_at?: string
@@ -23,8 +22,8 @@ interface CompletedPrediction {
   id: string
   title: string
   content_type: string
-  predicted_enjoyment: number
-  actual_enjoyment: number
+  hit_probability: number
+  outcome: 'hit' | 'miss' | 'fence'
   completed_at: string
 }
 
@@ -83,7 +82,7 @@ export default function Home() {
           dbId: p.id,
           title: p.content?.title || 'Unknown',
           content_type: p.content?.content_type || 'other',
-          predicted_enjoyment: p.predicted_enjoyment,
+          hit_probability: p.predicted_enjoyment, // stored as probability 0-100
           status: 'locked' as const,
           predicted_at: p.predicted_at
         })))
@@ -92,14 +91,20 @@ export default function Home() {
       // Load completed predictions for history
       const completed = await getCompletedPredictions(user.id)
       if (completed && completed.length > 0) {
-        setCompletedPredictions(completed.map((p: any) => ({
-          id: p.id,
-          title: p.content?.title || 'Unknown',
-          content_type: p.content?.content_type || 'other',
-          predicted_enjoyment: p.predicted_enjoyment,
-          actual_enjoyment: p.actual_enjoyment,
-          completed_at: p.completed_at
-        })))
+        setCompletedPredictions(completed.map((p: any) => {
+          // Map actual_enjoyment to outcome: 10=hit, 0=miss, 5=fence
+          let outcome: 'hit' | 'miss' | 'fence' = 'fence'
+          if (p.actual_enjoyment >= 8) outcome = 'hit'
+          else if (p.actual_enjoyment <= 2) outcome = 'miss'
+          return {
+            id: p.id,
+            title: p.content?.title || 'Unknown',
+            content_type: p.content?.content_type || 'other',
+            hit_probability: p.predicted_enjoyment,
+            outcome,
+            completed_at: p.completed_at
+          }
+        }))
       }
     }
   }
@@ -183,8 +188,7 @@ export default function Home() {
           id: `suggested-${Date.now()}-${idx}`,
           title: pred.title,
           content_type: pred.content_type,
-          predicted_enjoyment: pred.predicted_enjoyment,
-          match_percent: pred.match_percent,
+          hit_probability: pred.hit_probability,
           reasoning: pred.reasoning,
           status: 'suggested' as const
         }))
@@ -211,11 +215,12 @@ export default function Home() {
   const handleLockIn = async (prediction: LocalPrediction) => {
     if (!user || !shape) return
 
+    // Store hit_probability in predicted_enjoyment field (0-100)
     const dbId = await savePrediction(
       user.id,
       prediction.title,
       prediction.content_type,
-      prediction.predicted_enjoyment,
+      prediction.hit_probability,
       shape.dimensions,
       undefined // mood_before - could capture this
     )
@@ -237,57 +242,59 @@ export default function Home() {
   }
 
   // Record outcome for a locked prediction
-  const handleRecordOutcome = async (predictionId: string, actual: number) => {
+  const handleRecordOutcome = async (predictionId: string, outcome: 'hit' | 'miss' | 'fence') => {
     const prediction = activePredictions.find(p => p.id === predictionId)
     if (!prediction?.dbId) return
 
-    const success = await recordOutcome(prediction.dbId, actual)
+    // Map outcome to number for database: hit=10, fence=5, miss=0
+    const outcomeValue = outcome === 'hit' ? 10 : outcome === 'fence' ? 5 : 0
+    const success = await recordOutcome(prediction.dbId, outcomeValue)
+
     if (success) {
       // Add to completed predictions
       setCompletedPredictions(prev => [{
         id: prediction.dbId!,
         title: prediction.title,
         content_type: prediction.content_type,
-        predicted_enjoyment: prediction.predicted_enjoyment,
-        actual_enjoyment: actual,
+        hit_probability: prediction.hit_probability,
+        outcome,
         completed_at: new Date().toISOString()
       }, ...prev])
 
       // Remove from active
       setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
 
-      // Ask Abre to comment on the result
-      const diff = Math.abs(prediction.predicted_enjoyment - actual)
-      const isHit = diff <= 1
+      // Ask Abre to comment on the result (skip for fence - it's ambiguous)
+      if (outcome !== 'fence') {
+        const wasHit = outcome === 'hit'
+        const outcomeMessage = `[PREDICTION OUTCOME: User just finished "${prediction.title}". You predicted ${prediction.hit_probability}% chance it would hit. Result: ${wasHit ? 'HIT - it landed!' : 'MISS - didn\'t work for them.'}. Comment naturally - ${wasHit ? 'celebrate that the shape is working, maybe note what dimension made this click.' : 'frame positively: misses teach more than hits, no predictions are 100%, this helps calibrate for everyone with similar shapes. Ask what didn\'t land or what they were hoping for.'}]`
 
-      // Create a system message about the outcome for Abre to respond to
-      const outcomeMessage = `[PREDICTION OUTCOME: User just finished "${prediction.title}" and rated it ${actual}/10. You predicted ${prediction.predicted_enjoyment}/10. ${isHit ? 'That\'s a hit (within 1 point)!' : `That's off by ${diff} points.`} Comment on this naturally - if it was a hit, note the shape is working. If it was a miss, frame it positively: misses teach more than hits, no predictions are 100%, and finding where predictions aren't quite right is valuable data that helps everyone with similar shapes. ${!isHit ? 'Ask what didn\'t work or what surprised them.' : ''}]`
+        const newMessages = [...chatMessages, { role: 'user', content: outcomeMessage }]
 
-      const newMessages = [...chatMessages, { role: 'user', content: outcomeMessage }]
+        try {
+          const [shapebaseData, userHistory] = await Promise.all([
+            getWeightedPredictions(shape.dimensions, 8.0, 15),
+            getUserHistoryForChat(user.id)
+          ])
 
-      try {
-        const [shapebaseData, userHistory] = await Promise.all([
-          getWeightedPredictions(shape.dimensions, 8.0, 15),
-          getUserHistoryForChat(user.id)
-        ])
-
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: newMessages,
-            shape: shape.dimensions,
-            shapebaseData,
-            userHistory
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: newMessages,
+              shape: shape.dimensions,
+              shapebaseData,
+              userHistory
+            })
           })
-        })
-        const data = await res.json()
+          const data = await res.json()
 
-        if (data.response) {
-          setChatMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+          if (data.response) {
+            setChatMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+          }
+        } catch (err) {
+          console.error('Error getting Abre comment:', err)
         }
-      } catch (err) {
-        console.error('Error getting Abre comment:', err)
       }
     }
   }
@@ -516,46 +523,62 @@ export default function Home() {
                     <thead className="bg-gray-100 dark:bg-gray-700">
                       <tr>
                         <th className="px-4 py-2 text-left">Title</th>
-                        <th className="px-4 py-2 text-center">Predicted</th>
-                        <th className="px-4 py-2 text-center">Actual</th>
-                        <th className="px-4 py-2 text-center">Match</th>
+                        <th className="px-4 py-2 text-center">Probability</th>
+                        <th className="px-4 py-2 text-center">Outcome</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {completedPredictions.map((pred) => {
-                        const diff = Math.abs(pred.predicted_enjoyment - pred.actual_enjoyment)
-                        const isHit = diff <= 1
-                        return (
-                          <tr key={pred.id} className="border-t dark:border-gray-700">
-                            <td className="px-4 py-2">{pred.title}</td>
-                            <td className="px-4 py-2 text-center">{pred.predicted_enjoyment}</td>
-                            <td className="px-4 py-2 text-center">{pred.actual_enjoyment}</td>
-                            <td className="px-4 py-2 text-center">
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                isHit
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                              }`}>
-                                {isHit ? `+/- ${diff}` : `off by ${diff}`}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                      {completedPredictions.map((pred) => (
+                        <tr key={pred.id} className="border-t dark:border-gray-700">
+                          <td className="px-4 py-2">{pred.title}</td>
+                          <td className="px-4 py-2 text-center">{pred.hit_probability}%</td>
+                          <td className="px-4 py-2 text-center">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              pred.outcome === 'hit'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : pred.outcome === 'miss'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            }`}>
+                              {pred.outcome === 'hit' ? '✓ Hit' : pred.outcome === 'miss' ? '✗ Miss' : '~ Fence'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
 
-                  {/* Accuracy Summary */}
+                  {/* Calibration Summary */}
                   <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-sm">
                     {(() => {
-                      const hits = completedPredictions.filter(p =>
-                        Math.abs(p.predicted_enjoyment - p.actual_enjoyment) <= 1
-                      ).length
-                      const accuracy = Math.round((hits / completedPredictions.length) * 100)
+                      // Exclude fence from calibration calculation
+                      const decisive = completedPredictions.filter(p => p.outcome !== 'fence')
+                      const hits = decisive.filter(p => p.outcome === 'hit').length
+                      const avgProbability = decisive.length > 0
+                        ? Math.round(decisive.reduce((sum, p) => sum + p.hit_probability, 0) / decisive.length)
+                        : 0
+                      const actualHitRate = decisive.length > 0
+                        ? Math.round((hits / decisive.length) * 100)
+                        : 0
+
+                      if (decisive.length === 0) {
+                        return <span className="text-gray-500">No decisive outcomes yet</span>
+                      }
+
                       return (
-                        <span>
-                          <strong>{accuracy}%</strong> accuracy ({hits}/{completedPredictions.length} within +/- 1 point)
-                        </span>
+                        <div className="space-y-1">
+                          <div>
+                            <strong>{hits}/{decisive.length}</strong> hits ({actualHitRate}% hit rate)
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Avg prediction: {avgProbability}% · Actual: {actualHitRate}%
+                            {Math.abs(avgProbability - actualHitRate) <= 10
+                              ? ' · Well calibrated!'
+                              : avgProbability > actualHitRate
+                              ? ' · Predictions running hot'
+                              : ' · Predictions running cold'}
+                          </div>
+                        </div>
                       )
                     })()}
                   </div>
