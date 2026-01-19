@@ -210,32 +210,54 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       }
     }
 
-    // If Abre used tools but didn't provide text, we need to continue the conversation
-    // to get her actual response
+    // If Abre used tools but didn't provide text, continue the conversation
+    // by sending tool results back and getting her actual response
     if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate)) {
-      // Make a follow-up call to get Abre's response after tool use
-      const toolResults = []
+      // Build tool results to send back
+      const toolResultMessages: any[] = []
 
-      if (shapeUpdates) {
-        toolResults.push({ type: 'tool_result', tool_use_id: 'shape_update', content: 'Shape updated successfully.' })
-      }
-      if (nameUpdate) {
-        toolResults.push({ type: 'tool_result', tool_use_id: 'name_save', content: `Saved name: ${nameUpdate}` })
-      }
-      if (moodUpdate) {
-        toolResults.push({ type: 'tool_result', tool_use_id: 'mood_save', content: `Saved mood: ${moodUpdate}` })
+      for (const block of response.content) {
+        if (block.type === 'tool_use') {
+          let resultContent = ''
+          if (block.name === 'update_shape') {
+            resultContent = 'Shape updated successfully.'
+          } else if (block.name === 'save_user_name') {
+            resultContent = `Saved! You'll call them ${nameUpdate}.`
+          } else if (block.name === 'save_user_mood') {
+            resultContent = `Mood saved: ${moodUpdate}. Now give them a recommendation that fits this mood and their shape.`
+          }
+          toolResultMessages.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: resultContent
+          })
+        }
       }
 
-      // Generate a friendly confirmation based on what was saved
-      if (nameUpdate && !moodUpdate && !shapeUpdates) {
-        textResponse = `Great to meet you, ${nameUpdate}! I'll remember that. Now, what kind of headspace are you in right now? Tired, energized, need some comfort, looking for stimulation?`
-      } else if (moodUpdate && !shapeUpdates) {
-        textResponse = `Got it — ${moodUpdate}. Let me think about what would work for that mood combined with your shape...`
-      } else if (shapeUpdates) {
-        const dims = Object.entries(shapeUpdates.updates)
-          .map(([k, v]) => `${k.replace(/_/g, ' ')} → ${v}`)
-          .join(', ')
-        textResponse = `Updated your shape: ${dims}. ${shapeUpdates.reasoning}`
+      // Make follow-up call to get Abre's actual response
+      const followUpMessages = [
+        ...messages.map((m: any) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content
+        })),
+        { role: 'assistant' as const, content: response.content },
+        { role: 'user' as const, content: toolResultMessages }
+      ]
+
+      const followUpResponse = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: tools,
+        messages: followUpMessages
+      })
+
+      // Extract text from follow-up
+      for (const block of followUpResponse.content) {
+        if (block.type === 'text') {
+          textResponse = block.text
+          break
+        }
       }
     }
 
