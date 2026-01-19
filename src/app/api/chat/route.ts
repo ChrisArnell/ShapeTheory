@@ -236,13 +236,13 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
     let shapeUpdates: { updates: Record<string, number>, reasoning: string } | null = null
     let nameUpdate: string | null = null
     let moodUpdate: string | null = null
-    let newPrediction: {
+    let newPredictions: {
       title: string
       content_type: string
       predicted_enjoyment: number
       match_percent: number
       reasoning?: string
-    } | null = null
+    }[] = []
 
     for (const block of response.content) {
       if (block.type === 'text') {
@@ -255,20 +255,20 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
         } else if (block.name === 'save_user_mood') {
           moodUpdate = (block.input as { mood: string }).mood
         } else if (block.name === 'create_prediction') {
-          newPrediction = block.input as {
+          newPredictions.push(block.input as {
             title: string
             content_type: string
             predicted_enjoyment: number
             match_percent: number
             reasoning?: string
-          }
+          })
         }
       }
     }
 
     // If Abre used tools but didn't provide text, continue the conversation
     // by sending tool results back and getting her actual response
-    if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate || newPrediction)) {
+    if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate || newPredictions.length > 0)) {
       // Build tool results to send back
       const toolResultMessages: any[] = []
 
@@ -282,7 +282,8 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
           } else if (block.name === 'save_user_mood') {
             resultContent = `Mood saved: ${moodUpdate}. Now give them a recommendation that fits this mood and their shape.`
           } else if (block.name === 'create_prediction') {
-            resultContent = `Prediction locked in! ${newPrediction?.title} added to their active list with your ${newPrediction?.predicted_enjoyment}/10 prediction.`
+            const pred = block.input as { title: string; predicted_enjoyment: number }
+            resultContent = `Prediction locked in! ${pred.title} added to their active list with your ${pred.predicted_enjoyment}/10 prediction.`
           }
           toolResultMessages.push({
             type: 'tool_result',
@@ -324,7 +325,7 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       shapeUpdates,
       nameUpdate,
       moodUpdate,
-      newPrediction
+      newPredictions: newPredictions.length > 0 ? newPredictions : null
     })
   } catch (error) {
     console.error('Chat API error:', error)
