@@ -255,6 +255,28 @@ export default function Home() {
 
       // Remove from active
       setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
+
+      // Have Abre comment on the result
+      const diff = Math.abs(prediction.predicted_enjoyment - actual)
+      const isHit = diff <= 1
+      const wasHigher = actual > prediction.predicted_enjoyment
+
+      let abreComment = ''
+      if (isHit) {
+        if (diff === 0) {
+          abreComment = `Nailed it! ${prediction.title} landed exactly where I thought — ${actual}/10. Your shape is coming into focus.`
+        } else {
+          abreComment = `${prediction.title}: I said ${prediction.predicted_enjoyment}, you said ${actual}. Close enough! That's a hit in my book. The shape is working.`
+        }
+      } else {
+        if (wasHigher) {
+          abreComment = `Interesting — you liked ${prediction.title} more than I expected (${actual} vs my ${prediction.predicted_enjoyment}). That's actually great data. What landed for you that I missed? This helps me understand where your shape has edges I haven't mapped yet.`
+        } else {
+          abreComment = `Hmm, ${prediction.title} didn't hit like I thought it would (you said ${actual}, I predicted ${prediction.predicted_enjoyment}). Bummer you didn't love it, but honestly? Misses teach us more than hits. No prediction is 100%, and finding where we're off helps me do better for you — and for others with similar shapes. What didn't work?`
+        }
+      }
+
+      setChatMessages(prev => [...prev, { role: 'assistant', content: abreComment }])
     }
   }
 
