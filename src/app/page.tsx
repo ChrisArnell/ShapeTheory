@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { saveUserShape, loadUserShape } from '@/lib/db'
 import Auth from '@/components/Auth'
+import Predictions from '@/components/Predictions'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -13,6 +14,7 @@ export default function Home() {
   const [shapeLoading, setShapeLoading] = useState(false)
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
+  const [activeTab, setActiveTab] = useState<'chat' | 'predictions'>('chat')
 
   // Check auth state on mount
   useEffect(() => {
@@ -183,45 +185,76 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Chat Interface */}
-          <div className="border dark:border-gray-700 rounded-lg">
-            <div className="h-64 overflow-y-auto p-4 space-y-3">
-              {chatMessages.map((msg, i) => (
-                <div 
-                  key={i} 
-                  className={`p-3 rounded-lg ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-100 dark:bg-blue-900 ml-8' 
-                      : 'bg-gray-100 dark:bg-gray-800 mr-8'
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              ))}
-              {shapeLoading && (
-                <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mr-8">
-                  Thinking...
-                </div>
-              )}
-            </div>
-            <div className="border-t dark:border-gray-700 p-3 flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Ask for recommendations, rate something, explore..."
-                className="flex-1 p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={shapeLoading || !input.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
+          {/* Tab Navigation */}
+          <div className="flex border-b dark:border-gray-700">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-4 py-2 border-b-2 ${
+                activeTab === 'chat' 
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('predictions')}
+              className={`px-4 py-2 border-b-2 ${
+                activeTab === 'predictions' 
+                  ? 'border-blue-600 text-blue-600' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Predictions
+            </button>
           </div>
+
+          {/* Tab Content */}
+          {activeTab === 'chat' ? (
+            <>
+              {/* Chat Interface */}
+              <div className="border dark:border-gray-700 rounded-lg">
+                <div className="h-64 overflow-y-auto p-4 space-y-3">
+                  {chatMessages.map((msg, i) => (
+                    <div 
+                      key={i} 
+                      className={`p-3 rounded-lg ${
+                        msg.role === 'user' 
+                          ? 'bg-blue-100 dark:bg-blue-900 ml-8' 
+                          : 'bg-gray-100 dark:bg-gray-800 mr-8'
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                  ))}
+                  {shapeLoading && (
+                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mr-8">
+                      Thinking...
+                    </div>
+                  )}
+                </div>
+                <div className="border-t dark:border-gray-700 p-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Ask for recommendations, rate something, explore..."
+                    className="flex-1 p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={shapeLoading || !input.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <Predictions userId={user.id} userShape={shape.dimensions} />
+          )}
 
           {/* Reset Shape */}
           <button

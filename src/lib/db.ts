@@ -92,13 +92,14 @@ export async function loadUserShape(userId: string) {
   return dimensions
 }
 
-// Save a prediction (for tracking accuracy later)
+// Save a prediction (commit to watching something)
 export async function savePrediction(
   userId: string,
   contentTitle: string,
+  contentType: string,
   predictedEnjoyment: number,
-  moodBefore?: string,
-  moodDesired?: string
+  userShapeSnapshot: Record<string, number>,
+  moodBefore?: string
 ) {
   // First, find or create the content record
   let { data: content } = await supabase
@@ -113,7 +114,7 @@ export async function savePrediction(
       .from('content')
       .insert({ 
         title: contentTitle, 
-        content_type: 'unknown' 
+        content_type: contentType || 'unknown' 
       })
       .select('id')
       .single()
@@ -125,15 +126,15 @@ export async function savePrediction(
     content = newContent
   }
 
-  // Save prediction
+  // Save prediction with shape snapshot
   const { data: prediction, error } = await supabase
     .from('predictions')
     .insert({
       user_id: userId,
       content_id: content.id,
       predicted_enjoyment: predictedEnjoyment,
+      user_shape_snapshot: userShapeSnapshot,
       mood_before: moodBefore,
-      mood_desired: moodDesired,
       predicted_at: new Date().toISOString()
     })
     .select('id')
@@ -147,17 +148,77 @@ export async function savePrediction(
   return prediction.id
 }
 
+// Get pending predictions (committed but no outcome yet)
+export async function getPendingPredictions(userId: string) {
+  const { data, error } = await supabase
+    .from('predictions')
+    .select(`
+      id,
+      predicted_enjoyment,
+      predicted_at,
+      mood_before,
+      content (
+        id,
+        title,
+        content_type
+      )
+    `)
+    .eq('user_id', userId)
+    .is('actual_enjoyment', null)
+    .order('predicted_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching pending predictions:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Get completed predictions (with outcomes)
+export async function getCompletedPredictions(userId: string) {
+  const { data, error } = await supabase
+    .from('predictions')
+    .select(`
+      id,
+      predicted_enjoyment,
+      actual_enjoyment,
+      predicted_at,
+      completed_at,
+      mood_before,
+      mood_after,
+      content (
+        id,
+        title,
+        content_type
+      )
+    `)
+    .eq('user_id', userId)
+    .not('actual_enjoyment', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(20)
+
+  if (error) {
+    console.error('Error fetching completed predictions:', error)
+    return []
+  }
+
+  return data || []
+}
+
 // Record actual outcome for a prediction
 export async function recordOutcome(
   predictionId: string,
   actualEnjoyment: number,
-  moodAfter?: string
+  moodAfter?: string,
+  notes?: string
 ) {
   const { error } = await supabase
     .from('predictions')
     .update({
       actual_enjoyment: actualEnjoyment,
       mood_after: moodAfter,
+      notes: notes,
       completed_at: new Date().toISOString()
     })
     .eq('id', predictionId)
@@ -184,7 +245,7 @@ export async function getPredictionStats(userId: string) {
   }
 
   if (!data || data.length === 0) {
-    return { total: 0, accuracy: null }
+    return { total: 0, hits: 0, accuracy: null }
   }
 
   // Calculate accuracy (within 2 points = hit)
