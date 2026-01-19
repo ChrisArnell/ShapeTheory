@@ -1,5 +1,62 @@
 import { supabase } from './supabase'
 
+// User profile functions
+export async function getUserProfile(userId: string) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('display_name, current_mood, mood_updated_at')
+    .eq('user_id', userId)
+    .single()
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+    console.error('Error fetching user profile:', error)
+  }
+
+  return data || { display_name: null, current_mood: null }
+}
+
+export async function saveUserProfile(
+  userId: string,
+  updates: { display_name?: string; current_mood?: string }
+) {
+  const updateData: any = { ...updates, updated_at: new Date().toISOString() }
+  if (updates.current_mood !== undefined) {
+    updateData.mood_updated_at = new Date().toISOString()
+  }
+
+  const { error } = await supabase
+    .from('user_profiles')
+    .upsert({
+      user_id: userId,
+      ...updateData
+    }, {
+      onConflict: 'user_id'
+    })
+
+  if (error) {
+    console.error('Error saving user profile:', error)
+    return false
+  }
+  return true
+}
+
+// Get user's full history for Abre context
+export async function getUserHistoryForChat(userId: string) {
+  const [pending, completed, stats, profile] = await Promise.all([
+    getPendingPredictions(userId),
+    getCompletedPredictions(userId),
+    getPredictionStats(userId),
+    getUserProfile(userId)
+  ])
+
+  return {
+    profile,
+    pending,
+    completed,
+    stats
+  }
+}
+
 // Get dimension IDs from the database
 export async function getDimensions() {
   const { data, error } = await supabase

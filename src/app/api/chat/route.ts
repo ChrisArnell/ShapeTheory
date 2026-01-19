@@ -5,7 +5,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-// Tool definition for updating shape dimensions
+// Tool definitions
 const tools: Anthropic.Messages.Tool[] = [
   {
     name: "update_shape",
@@ -25,17 +25,87 @@ const tools: Anthropic.Messages.Tool[] = [
       },
       required: ["updates", "reasoning"]
     }
+  },
+  {
+    name: "save_user_name",
+    description: "Save the user's preferred name/nickname when they tell you what they'd like to be called.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "The name the user wants to be called"
+        }
+      },
+      required: ["name"]
+    }
+  },
+  {
+    name: "save_user_mood",
+    description: "Save the user's current mood when they share it, especially before making recommendations.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mood: {
+          type: "string",
+          description: "The user's current mood or state (e.g., 'tired', 'anxious', 'energized', 'need comfort')"
+        }
+      },
+      required: ["mood"]
+    }
   }
 ]
 
 export async function POST(request: Request) {
   try {
-    const { messages, shape, shapebaseData } = await request.json()
+    const { messages, shape, shapebaseData, userHistory } = await request.json()
 
     // Build shape context for the system prompt
     const shapeContext = Object.entries(shape)
       .map(([dim, val]) => `${dim.replace(/_/g, ' ')}: ${val}/10`)
       .join(', ')
+
+    // Build user profile context
+    let userProfileContext = ''
+    if (userHistory?.profile) {
+      const { display_name, current_mood } = userHistory.profile
+      if (display_name) {
+        userProfileContext += `\nUser's name: ${display_name} (use it warmly!)`
+      } else {
+        userProfileContext += `\nUser hasn't told you their name yet. Early in conversation, ask what they'd like to be called.`
+      }
+      if (current_mood) {
+        userProfileContext += `\nCurrent mood: ${current_mood}`
+      }
+    }
+
+    // Build user history context
+    let userHistoryContext = ''
+    if (userHistory) {
+      const { pending, completed, stats } = userHistory
+
+      if (stats && stats.total > 0) {
+        userHistoryContext += `\n\nUSER'S PREDICTION TRACK RECORD:
+- ${stats.total} predictions made, ${stats.hits} hits (within 2 points), ${Math.round((stats.accuracy || 0) * 100)}% accuracy
+- ${pending?.length || 0} pending (watching now), ${completed?.length || 0} completed`
+      }
+
+      if (completed && completed.length > 0) {
+        const recentHistory = completed.slice(0, 8).map((p: any) => {
+          const diff = p.actual_enjoyment - p.predicted_enjoyment
+          const diffStr = diff === 0 ? 'spot on' : diff > 0 ? `+${diff} better than expected` : `${diff} worse than expected`
+          return `- ${p.content?.title}: predicted ${p.predicted_enjoyment}, actual ${p.actual_enjoyment} (${diffStr})`
+        }).join('\n')
+        userHistoryContext += `\n\nRECENT HISTORY (reference this!):\n${recentHistory}`
+      }
+
+      if (pending && pending.length > 0) {
+        const pendingList = pending.slice(0, 5).map((p: any) =>
+          `- ${p.content?.title}: predicted ${p.predicted_enjoyment}/10`
+        ).join('\n')
+        userHistoryContext += `\n\nCURRENTLY WATCHING/LISTENING:\n${pendingList}`
+      }
+    }
 
     // Build shapebase context if we have data from similar users
     let shapebaseContext = ''
@@ -64,6 +134,8 @@ You understand entertainment through dimensional analysis rather than genre cate
 
 This user's entertainment shape:
 ${shapeContext}
+${userProfileContext}
+${userHistoryContext}
 
 YOUR ROLE:
 1. Recommend entertainment that matches their SHAPE, ignoring genre boundaries
@@ -72,6 +144,15 @@ YOUR ROLE:
 4. INCLUDE things that WON'T work for their shape and explain why: "Ted Lasso - 35% match. Too much sentimentality, not enough darkness. Most people love it. You probably won't."
 5. The low matches are as valuable as the high matches - they define the shape's edges
 6. If they want to explore a dimension, you can create a quick quiz: "Let me ask you a few questions about [dimension]..."
+7. Reference their history! If they rated something recently, mention it: "You gave Severance an 8, which tells me..."
+8. USE their prediction accuracy to calibrate confidence: if they're usually spot-on, trust their self-assessments more
+
+PERSONALIZATION:
+- If you don't know their name yet, ask early: "By the way, what should I call you?"
+- When they tell you their name, use save_user_name to remember it
+- BEFORE giving recommendations, ask about their current mood/state: "What kind of headspace are you in right now?" or "How are you feeling — need comfort, stimulation, escape?"
+- When they share their mood, use save_user_mood to remember it, then tailor recommendations accordingly
+- A tired person needs different recs than an energized one, even with the same shape
 
 SHAPE REFINEMENT - BE PROACTIVE:
 Look for signals that a dimension might need adjusting. After meaningful exchanges (a quiz, a list of several things they like/dislike, strong reactions to recommendations), assess whether any dimensions should shift.
@@ -112,16 +193,24 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
     // Extract text and tool calls
     let textResponse = ''
     let shapeUpdates: { updates: Record<string, number>, reasoning: string } | null = null
+    let nameUpdate: string | null = null
+    let moodUpdate: string | null = null
 
     for (const block of response.content) {
       if (block.type === 'text') {
         textResponse = block.text
-      } else if (block.type === 'tool_use' && block.name === 'update_shape') {
-        shapeUpdates = block.input as { updates: Record<string, number>, reasoning: string }
+      } else if (block.type === 'tool_use') {
+        if (block.name === 'update_shape') {
+          shapeUpdates = block.input as { updates: Record<string, number>, reasoning: string }
+        } else if (block.name === 'save_user_name') {
+          nameUpdate = (block.input as { name: string }).name
+        } else if (block.name === 'save_user_mood') {
+          moodUpdate = (block.input as { mood: string }).mood
+        }
       }
     }
 
-    // If Claude used the tool but didn't provide text, generate confirmation message
+    // If Claude used shape tool but didn't provide text, generate confirmation message
     if (shapeUpdates && !textResponse) {
       const dims = Object.entries(shapeUpdates.updates)
         .map(([k, v]) => `${k.replace(/_/g, ' ')} → ${v}`)
@@ -131,7 +220,9 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
 
     return NextResponse.json({
       response: textResponse,
-      shapeUpdates: shapeUpdates
+      shapeUpdates,
+      nameUpdate,
+      moodUpdate
     })
   } catch (error) {
     console.error('Chat API error:', error)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { saveUserShape, loadUserShape, getWeightedPredictions } from '@/lib/db'
+import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile } from '@/lib/db'
 import Auth from '@/components/Auth'
 import Predictions from '@/components/Predictions'
 import ShapeRadar from '@/components/ShapeRadar'
@@ -88,8 +88,11 @@ export default function Home() {
     setShapeLoading(true)
 
     try {
-      // Fetch evidence from similar users (shapebase)
-      const shapebaseData = await getWeightedPredictions(shape.dimensions, 8.0, 15)
+      // Fetch evidence from similar users (shapebase) and user history
+      const [shapebaseData, userHistory] = await Promise.all([
+        getWeightedPredictions(shape.dimensions, 8.0, 15),
+        getUserHistoryForChat(user.id)
+      ])
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -97,21 +100,29 @@ export default function Home() {
         body: JSON.stringify({
           messages: newMessages,
           shape: shape.dimensions,
-          shapebaseData
+          shapebaseData,
+          userHistory
         })
       })
       const data = await res.json()
 
-      // If Claude updated the shape, save it
+      // If Abre updated the shape, save it
       if (data.shapeUpdates && data.shapeUpdates.updates) {
         const newDimensions = { ...shape.dimensions, ...data.shapeUpdates.updates }
         const saved = await saveUserShape(user.id, newDimensions)
         if (saved) {
           setShape({ ...shape, dimensions: newDimensions })
           setShapeUpdated(true)
-          // Clear the indicator after 3 seconds
           setTimeout(() => setShapeUpdated(false), 3000)
         }
+      }
+
+      // If Abre saved name or mood, persist it
+      if (data.nameUpdate || data.moodUpdate) {
+        await saveUserProfile(user.id, {
+          ...(data.nameUpdate && { display_name: data.nameUpdate }),
+          ...(data.moodUpdate && { current_mood: data.moodUpdate })
+        })
       }
 
       setChatMessages([...newMessages, { role: 'assistant', content: data.response }])
