@@ -315,7 +315,7 @@ export default function Home() {
     <main className="min-h-screen p-8 max-w-2xl mx-auto relative">
       {/* Giant faint shape in background */}
       {shape && shape.dimensions && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0 opacity-[0.08]">
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0 opacity-[0.12]">
           <ShapeRadar dimensions={shape.dimensions} size={800} />
         </div>
       )}
@@ -495,42 +495,12 @@ export default function Home() {
             />
           </div>
 
-          {/* Shape Bars Display */}
-          <div className={`p-4 rounded-lg transition-colors duration-300 ${
-            shapeUpdated
-              ? 'bg-green-100 dark:bg-green-900 ring-2 ring-green-500'
-              : 'bg-gray-100/80 dark:bg-gray-800/80'
-          }`}>
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="font-semibold">Your Shape</h2>
-              {shapeUpdated && (
-                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">
-                  Updated!
-                </span>
-              )}
-            </div>
-            <div className="space-y-2">
-              {shape.dimensions && Object.entries(shape.dimensions).map(([key, value]: [string, any]) => (
-                <div key={key} className="flex items-center gap-2">
-                  <span className="text-sm w-40 capitalize">{key.replace(/_/g, ' ')}</span>
-                  <div className="flex-1 h-2 bg-gray-300 dark:bg-gray-600 rounded">
-                    <div
-                      className="h-full bg-blue-600 rounded"
-                      style={{ width: `${(value / 10) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-sm w-6 text-right">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Prediction History */}
           {completedPredictions.length > 0 && (
             <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
-                className="w-full px-4 py-3 flex justify-between items-center bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="w-full px-4 py-3 flex justify-between items-center bg-gray-50/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <span className="font-medium">
                   Prediction History ({completedPredictions.length})
@@ -541,7 +511,7 @@ export default function Home() {
               </button>
 
               {historyExpanded && (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto bg-white/90 dark:bg-gray-900/90">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-100 dark:bg-gray-700">
                       <tr>
@@ -593,6 +563,36 @@ export default function Home() {
               )}
             </div>
           )}
+
+          {/* Shape Bars Display */}
+          <div className={`p-4 rounded-lg transition-colors duration-300 ${
+            shapeUpdated
+              ? 'bg-green-100 dark:bg-green-900 ring-2 ring-green-500'
+              : 'bg-gray-100/80 dark:bg-gray-800/80'
+          }`}>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-semibold">Your Shape</h2>
+              {shapeUpdated && (
+                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">
+                  Updated!
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {shape.dimensions && Object.entries(shape.dimensions).map(([key, value]: [string, any]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-sm w-40 capitalize">{key.replace(/_/g, ' ')}</span>
+                  <div className="flex-1 h-2 bg-gray-300 dark:bg-gray-600 rounded">
+                    <div
+                      className="h-full bg-blue-600 rounded"
+                      style={{ width: `${(value / 10) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-sm w-6 text-right">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Reset Shape */}
           <button
