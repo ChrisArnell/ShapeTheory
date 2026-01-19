@@ -11,11 +11,8 @@ interface Prediction {
   completed_at?: string
   mood_before?: string
   mood_after?: string
-  content: {
-    id: string
-    title: string
-    content_type: string
-  }
+  content: any
+}
 }
 
 interface PredictionsProps {
