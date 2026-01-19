@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { savePrediction, getPendingPredictions, getCompletedPredictions, recordOutcome, getPredictionStats } from '@/lib/db'
+import ContentPicker from './ContentPicker'
 
 interface PredictionsProps {
   userId: string
@@ -13,11 +14,10 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
   const [completed, setCompleted] = useState<any[]>([])
   const [stats, setStats] = useState<{ total: number; hits: number; accuracy: number | null } | null>(null)
   const [loading, setLoading] = useState(true)
-  
+
   // Commit form state
   const [showCommitForm, setShowCommitForm] = useState(false)
-  const [contentTitle, setContentTitle] = useState('')
-  const [contentType, setContentType] = useState('show')
+  const [selectedContent, setSelectedContent] = useState<{ id: string; title: string; content_type: string } | null>(null)
   const [predictedEnjoyment, setPredictedEnjoyment] = useState(7)
   const [moodBefore, setMoodBefore] = useState('')
   const [committing, setCommitting] = useState(false)
@@ -46,26 +46,26 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
   }
 
   const handleCommit = async () => {
-    if (!contentTitle.trim()) return
+    if (!selectedContent) return
     setCommitting(true)
-    
+
     const predictionId = await savePrediction(
       userId,
-      contentTitle.trim(),
-      contentType,
+      selectedContent.title,
+      selectedContent.content_type,
       predictedEnjoyment,
       userShape,
       moodBefore || undefined
     )
-    
+
     if (predictionId) {
-      setContentTitle('')
+      setSelectedContent(null)
       setPredictedEnjoyment(7)
       setMoodBefore('')
       setShowCommitForm(false)
       await loadData()
     }
-    
+
     setCommitting(false)
   }
 
@@ -132,45 +132,25 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
           <div className="space-y-3">
             <div>
               <label className="block text-sm mb-1">What are you going to watch/listen to?</label>
-              <input
-                type="text"
-                value={contentTitle}
-                onChange={(e) => setContentTitle(e.target.value)}
-                placeholder="e.g., Patriot, Severance, Tyler Childers..."
-                className="w-full p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
+              <ContentPicker
+                onSelect={setSelectedContent}
+                userShape={userShape}
+                placeholder="Search or type content name..."
               />
             </div>
-            
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm mb-1">Type</label>
-                <select
-                  value={contentType}
-                  onChange={(e) => setContentType(e.target.value)}
-                  className="w-full p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
-                >
-                  <option value="show">TV Show</option>
-                  <option value="movie">Movie</option>
-                  <option value="album">Album</option>
-                  <option value="artist">Artist</option>
-                  <option value="comedy">Comedy Special</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              
-              <div className="flex-1">
-                <label className="block text-sm mb-1">
-                  Predicted enjoyment: <strong>{predictedEnjoyment}</strong>/10
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={predictedEnjoyment}
-                  onChange={(e) => setPredictedEnjoyment(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
+
+            <div>
+              <label className="block text-sm mb-1">
+                Predicted enjoyment: <strong>{predictedEnjoyment}</strong>/10
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={predictedEnjoyment}
+                onChange={(e) => setPredictedEnjoyment(Number(e.target.value))}
+                className="w-full"
+              />
             </div>
             
             <div>
@@ -187,13 +167,16 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
             <div className="flex gap-2">
               <button
                 onClick={handleCommit}
-                disabled={committing || !contentTitle.trim()}
+                disabled={committing || !selectedContent}
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
               >
                 {committing ? 'Saving...' : 'Lock It In'}
               </button>
               <button
-                onClick={() => setShowCommitForm(false)}
+                onClick={() => {
+                  setShowCommitForm(false)
+                  setSelectedContent(null)
+                }}
                 className="px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 Cancel
