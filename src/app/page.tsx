@@ -1,17 +1,56 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { saveUserShape, loadUserShape } from '@/lib/db'
+import Auth from '@/components/Auth'
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState('')
   const [shape, setShape] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
+  const [shapeLoading, setShapeLoading] = useState(false)
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
 
+  // Check auth state on mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Load existing shape when user logs in
+  useEffect(() => {
+    if (user) {
+      loadExistingShape()
+    }
+  }, [user])
+
+  const loadExistingShape = async () => {
+    if (!user) return
+    
+    const existingShape = await loadUserShape(user.id)
+    if (existingShape && Object.keys(existingShape).length > 0) {
+      setShape({ dimensions: existingShape, summary: 'Welcome back. Your shape is loaded.' })
+      setChatMessages([{ 
+        role: 'assistant', 
+        content: "Welcome back. I remember your shape. What are you in the mood for?" 
+      }])
+    }
+  }
+
   const captureShape = async () => {
-    if (!favorites.trim()) return
-    setLoading(true)
+    if (!favorites.trim() || !user) return
+    setShapeLoading(true)
     
     try {
       const res = await fetch('/api/shape', {
@@ -20,13 +59,20 @@ export default function Home() {
         body: JSON.stringify({ favorites })
       })
       const data = await res.json()
+      
+      // Save to database
+      const saved = await saveUserShape(user.id, data.dimensions)
+      if (saved) {
+        console.log('Shape saved to database')
+      }
+      
       setShape(data)
       setChatMessages([{ role: 'assistant', content: data.summary }])
     } catch (err) {
       console.error('Error capturing shape:', err)
     }
     
-    setLoading(false)
+    setShapeLoading(false)
   }
 
   const sendMessage = async () => {
@@ -35,7 +81,7 @@ export default function Home() {
     const newMessages = [...chatMessages, { role: 'user', content: input }]
     setChatMessages(newMessages)
     setInput('')
-    setLoading(true)
+    setShapeLoading(true)
 
     try {
       const res = await fetch('/api/chat', {
@@ -52,17 +98,50 @@ export default function Home() {
       console.error('Error sending message:', err)
     }
     
-    setLoading(false)
+    setShapeLoading(false)
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setShape(null)
+    setChatMessages([])
+    setFavorites('')
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen p-8 max-w-2xl mx-auto">
+        <p>Loading...</p>
+      </main>
+    )
   }
 
   return (
     <main className="min-h-screen p-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-2">Shape Theory</h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-8">
-        Discover your entertainment shape
-      </p>
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <h1 className="text-3xl font-bold">Shape Theory</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Discover your entertainment shape
+          </p>
+        </div>
+        {user && (
+          <button
+            onClick={handleSignOut}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Sign out
+          </button>
+        )}
+      </div>
+      
+      {user && (
+        <p className="text-sm text-gray-500 mb-8">{user.email}</p>
+      )}
 
-      {!shape ? (
+      {!user ? (
+        <Auth onAuth={() => {}} />
+      ) : !shape ? (
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -77,10 +156,10 @@ export default function Home() {
           </div>
           <button
             onClick={captureShape}
-            disabled={loading || !favorites.trim()}
+            disabled={shapeLoading || !favorites.trim()}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Analyzing...' : 'Capture My Shape'}
+            {shapeLoading ? 'Analyzing...' : 'Capture My Shape'}
           </button>
         </div>
       ) : (
@@ -119,7 +198,7 @@ export default function Home() {
                   {msg.content}
                 </div>
               ))}
-              {loading && (
+              {shapeLoading && (
                 <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mr-8">
                   Thinking...
                 </div>
@@ -136,7 +215,7 @@ export default function Home() {
               />
               <button
                 onClick={sendMessage}
-                disabled={loading || !input.trim()}
+                disabled={shapeLoading || !input.trim()}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
                 Send
@@ -144,7 +223,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Reset */}
+          {/* Reset Shape */}
           <button
             onClick={() => {
               setShape(null)
@@ -153,7 +232,7 @@ export default function Home() {
             }}
             className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
           >
-            Start over
+            Recapture my shape
           </button>
         </div>
       )}
