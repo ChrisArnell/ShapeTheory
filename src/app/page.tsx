@@ -312,7 +312,15 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen p-8 max-w-2xl mx-auto">
+    <main className="min-h-screen p-8 max-w-2xl mx-auto relative">
+      {/* Giant faint shape in background */}
+      {shape && shape.dimensions && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0 opacity-[0.04]">
+          <ShapeRadar dimensions={shape.dimensions} size={800} />
+        </div>
+      )}
+
+      <div className="relative z-10">
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-4">
           {shape && shape.dimensions && (
@@ -599,6 +607,7 @@ export default function Home() {
           </button>
         </div>
       )}
+      </div>
     </main>
   )
 }
