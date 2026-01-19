@@ -256,27 +256,39 @@ export default function Home() {
       // Remove from active
       setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
 
-      // Have Abre comment on the result
+      // Ask Abre to comment on the result
       const diff = Math.abs(prediction.predicted_enjoyment - actual)
       const isHit = diff <= 1
-      const wasHigher = actual > prediction.predicted_enjoyment
 
-      let abreComment = ''
-      if (isHit) {
-        if (diff === 0) {
-          abreComment = `Nailed it! ${prediction.title} landed exactly where I thought — ${actual}/10. Your shape is coming into focus.`
-        } else {
-          abreComment = `${prediction.title}: I said ${prediction.predicted_enjoyment}, you said ${actual}. Close enough! That's a hit in my book. The shape is working.`
+      // Create a system message about the outcome for Abre to respond to
+      const outcomeMessage = `[PREDICTION OUTCOME: User just finished "${prediction.title}" and rated it ${actual}/10. You predicted ${prediction.predicted_enjoyment}/10. ${isHit ? 'That\'s a hit (within 1 point)!' : `That's off by ${diff} points.`} Comment on this naturally - if it was a hit, note the shape is working. If it was a miss, frame it positively: misses teach more than hits, no predictions are 100%, and finding where predictions aren't quite right is valuable data that helps everyone with similar shapes. ${!isHit ? 'Ask what didn\'t work or what surprised them.' : ''}]`
+
+      const newMessages = [...chatMessages, { role: 'user', content: outcomeMessage }]
+
+      try {
+        const [shapebaseData, userHistory] = await Promise.all([
+          getWeightedPredictions(shape.dimensions, 8.0, 15),
+          getUserHistoryForChat(user.id)
+        ])
+
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: newMessages,
+            shape: shape.dimensions,
+            shapebaseData,
+            userHistory
+          })
+        })
+        const data = await res.json()
+
+        if (data.response) {
+          setChatMessages(prev => [...prev, { role: 'assistant', content: data.response }])
         }
-      } else {
-        if (wasHigher) {
-          abreComment = `Interesting — you liked ${prediction.title} more than I expected (${actual} vs my ${prediction.predicted_enjoyment}). That's actually great data. What landed for you that I missed? This helps me understand where your shape has edges I haven't mapped yet.`
-        } else {
-          abreComment = `Hmm, ${prediction.title} didn't hit like I thought it would (you said ${actual}, I predicted ${prediction.predicted_enjoyment}). Bummer you didn't love it, but honestly? Misses teach us more than hits. No prediction is 100%, and finding where we're off helps me do better for you — and for others with similar shapes. What didn't work?`
-        }
+      } catch (err) {
+        console.error('Error getting Abre comment:', err)
       }
-
-      setChatMessages(prev => [...prev, { role: 'assistant', content: abreComment }])
     }
   }
 
