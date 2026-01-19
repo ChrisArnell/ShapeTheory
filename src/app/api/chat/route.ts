@@ -53,6 +53,37 @@ const tools: Anthropic.Messages.Tool[] = [
       },
       required: ["mood"]
     }
+  },
+  {
+    name: "create_prediction",
+    description: "Create a prediction when the user commits to watching/listening to something. Call this when the user says they'll check something out, or when they ask you to 'lock it in'. The prediction appears in their active list.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "The title of the content (movie, show, album, song, etc.)"
+        },
+        content_type: {
+          type: "string",
+          enum: ["movie", "show", "album", "song", "podcast", "comedy_special", "other"],
+          description: "The type of content"
+        },
+        predicted_enjoyment: {
+          type: "number",
+          description: "Your prediction for how much they'll enjoy it (1-10)"
+        },
+        match_percent: {
+          type: "number",
+          description: "The match percentage you quoted (0-100)"
+        },
+        reasoning: {
+          type: "string",
+          description: "Brief note about why this match level"
+        }
+      },
+      required: ["title", "content_type", "predicted_enjoyment", "match_percent"]
+    }
   }
 ]
 
@@ -170,6 +201,16 @@ DON'T propose updates after every single message — that's annoying. But DO pro
 - They have a strong reaction to a recommendation
 - A pattern emerges across the conversation
 
+CLOSING THE LOOP - PREDICTIONS:
+When you recommend something, offer to track it! Say things like:
+- "If you're going to watch it in the next few days, I can lock in that prediction"
+- "Want me to add that to your list? I'm calling it an 8/10 for you."
+- "Should I track that one? I want to see if I'm right about you."
+
+When they say yes, or say they'll check something out ("I'll watch that", "adding it to my queue", "lock it in"), use create_prediction.
+
+This is key — we want to close loops. Recommendations without outcomes don't teach us anything. Make it easy and natural to commit.
+
 YOUR VOICE:
 - Warm but direct. Kind but not soft.
 - Quick wit, occasionally impish — but never mean
@@ -195,6 +236,13 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
     let shapeUpdates: { updates: Record<string, number>, reasoning: string } | null = null
     let nameUpdate: string | null = null
     let moodUpdate: string | null = null
+    let newPrediction: {
+      title: string
+      content_type: string
+      predicted_enjoyment: number
+      match_percent: number
+      reasoning?: string
+    } | null = null
 
     for (const block of response.content) {
       if (block.type === 'text') {
@@ -206,13 +254,21 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
           nameUpdate = (block.input as { name: string }).name
         } else if (block.name === 'save_user_mood') {
           moodUpdate = (block.input as { mood: string }).mood
+        } else if (block.name === 'create_prediction') {
+          newPrediction = block.input as {
+            title: string
+            content_type: string
+            predicted_enjoyment: number
+            match_percent: number
+            reasoning?: string
+          }
         }
       }
     }
 
     // If Abre used tools but didn't provide text, continue the conversation
     // by sending tool results back and getting her actual response
-    if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate)) {
+    if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate || newPrediction)) {
       // Build tool results to send back
       const toolResultMessages: any[] = []
 
@@ -225,6 +281,8 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
             resultContent = `Saved! You'll call them ${nameUpdate}.`
           } else if (block.name === 'save_user_mood') {
             resultContent = `Mood saved: ${moodUpdate}. Now give them a recommendation that fits this mood and their shape.`
+          } else if (block.name === 'create_prediction') {
+            resultContent = `Prediction locked in! ${newPrediction?.title} added to their active list with your ${newPrediction?.predicted_enjoyment}/10 prediction.`
           }
           toolResultMessages.push({
             type: 'tool_result',
@@ -265,7 +323,8 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       response: textResponse,
       shapeUpdates,
       nameUpdate,
-      moodUpdate
+      moodUpdate,
+      newPrediction
     })
   } catch (error) {
     console.error('Chat API error:', error)

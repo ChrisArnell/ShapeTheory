@@ -2,10 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile } from '@/lib/db'
+import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
-import Predictions from '@/components/Predictions'
 import ShapeRadar from '@/components/ShapeRadar'
+import ActivePredictions from '@/components/ActivePredictions'
+
+interface LocalPrediction {
+  id: string
+  title: string
+  content_type: string
+  predicted_enjoyment: number
+  match_percent?: number
+  reasoning?: string
+  status: 'suggested' | 'locked' | 'completed'
+  predicted_at?: string
+  dbId?: string  // database ID once locked in
+}
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -15,8 +27,8 @@ export default function Home() {
   const [shapeLoading, setShapeLoading] = useState(false)
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
-  const [activeTab, setActiveTab] = useState<'chat' | 'predictions'>('chat')
   const [shapeUpdated, setShapeUpdated] = useState(false)
+  const [activePredictions, setActivePredictions] = useState<LocalPrediction[]>([])
 
   // Check auth state on mount
   useEffect(() => {
@@ -49,6 +61,20 @@ export default function Home() {
         role: 'assistant',
         content: "Hey! Abre here. Good to see you again. Looking for something to watch or listen to? Or want to work more on your shape? I can run a quick quiz on any dimension that feels off, or you can tell me more things you love or hate and we'll keep refining."
       }])
+
+      // Load existing pending predictions
+      const pending = await getPendingPredictions(user.id)
+      if (pending && pending.length > 0) {
+        setActivePredictions(pending.map((p: any) => ({
+          id: p.id,
+          dbId: p.id,
+          title: p.content?.title || 'Unknown',
+          content_type: p.content?.content_type || 'other',
+          predicted_enjoyment: p.predicted_enjoyment,
+          status: 'locked' as const,
+          predicted_at: p.predicted_at
+        })))
+      }
     }
   }
 
@@ -125,6 +151,20 @@ export default function Home() {
         })
       }
 
+      // If Abre created a prediction, add it to suggestions
+      if (data.newPrediction) {
+        const newPred: LocalPrediction = {
+          id: `suggested-${Date.now()}`,
+          title: data.newPrediction.title,
+          content_type: data.newPrediction.content_type,
+          predicted_enjoyment: data.newPrediction.predicted_enjoyment,
+          match_percent: data.newPrediction.match_percent,
+          reasoning: data.newPrediction.reasoning,
+          status: 'suggested'
+        }
+        setActivePredictions(prev => [...prev, newPred])
+      }
+
       setChatMessages([...newMessages, { role: 'assistant', content: data.response }])
     } catch (err) {
       console.error('Error sending message:', err)
@@ -138,6 +178,58 @@ export default function Home() {
     setShape(null)
     setChatMessages([])
     setFavorites('')
+    setActivePredictions([])
+  }
+
+  // Lock in a suggested prediction - save to database
+  const handleLockIn = async (prediction: LocalPrediction) => {
+    if (!user || !shape) return
+
+    const dbId = await savePrediction(
+      user.id,
+      prediction.title,
+      prediction.content_type,
+      prediction.predicted_enjoyment,
+      shape.dimensions,
+      undefined // mood_before - could capture this
+    )
+
+    if (dbId) {
+      setActivePredictions(prev =>
+        prev.map(p =>
+          p.id === prediction.id
+            ? { ...p, status: 'locked' as const, dbId }
+            : p
+        )
+      )
+    }
+  }
+
+  // Dismiss a suggested prediction (don't save)
+  const handleDismiss = (predictionId: string) => {
+    setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
+  }
+
+  // Record outcome for a locked prediction
+  const handleRecordOutcome = async (predictionId: string, actual: number) => {
+    const prediction = activePredictions.find(p => p.id === predictionId)
+    if (!prediction?.dbId) return
+
+    const success = await recordOutcome(prediction.dbId, actual)
+    if (success) {
+      setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
+    }
+  }
+
+  // Delete a prediction
+  const handleDeletePrediction = async (predictionId: string) => {
+    const prediction = activePredictions.find(p => p.id === predictionId)
+
+    // If it's in the database, we could delete it there too
+    // For now, just remove from local state
+    setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
+
+    // TODO: Add supabase delete if dbId exists
   }
 
   if (loading) {
@@ -233,76 +325,54 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex border-b dark:border-gray-700">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`px-4 py-2 border-b-2 ${
-                activeTab === 'chat' 
-                  ? 'border-blue-600 text-blue-600' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Chat
-            </button>
-            <button
-              onClick={() => setActiveTab('predictions')}
-              className={`px-4 py-2 border-b-2 ${
-                activeTab === 'predictions' 
-                  ? 'border-blue-600 text-blue-600' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Predictions
-            </button>
-          </div>
+          {/* Chat Interface */}
+          <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="h-64 overflow-y-auto p-4 space-y-3">
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`p-3 rounded-lg ${
+                    msg.role === 'user'
+                      ? 'bg-blue-100 dark:bg-blue-900 ml-8'
+                      : 'bg-gray-100 dark:bg-gray-800 mr-8'
+                  }`}
+                >
+                  {msg.content}
+                </div>
+              ))}
+              {shapeLoading && (
+                <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mr-8">
+                  Thinking...
+                </div>
+              )}
+            </div>
+            <div className="border-t dark:border-gray-700 p-3 flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder="Ask for recommendations, rate something, explore..."
+                className="flex-1 p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
+              />
+              <button
+                onClick={sendMessage}
+                disabled={shapeLoading || !input.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Send
+              </button>
+            </div>
 
-          {/* Tab Content */}
-          {activeTab === 'chat' ? (
-            <>
-              {/* Chat Interface */}
-              <div className="border dark:border-gray-700 rounded-lg">
-                <div className="h-64 overflow-y-auto p-4 space-y-3">
-                  {chatMessages.map((msg, i) => (
-                    <div 
-                      key={i} 
-                      className={`p-3 rounded-lg ${
-                        msg.role === 'user' 
-                          ? 'bg-blue-100 dark:bg-blue-900 ml-8' 
-                          : 'bg-gray-100 dark:bg-gray-800 mr-8'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                  ))}
-                  {shapeLoading && (
-                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mr-8">
-                      Thinking...
-                    </div>
-                  )}
-                </div>
-                <div className="border-t dark:border-gray-700 p-3 flex gap-2">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                    placeholder="Ask for recommendations, rate something, explore..."
-                    className="flex-1 p-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
-                  />
-                  <button
-                    onClick={sendMessage}
-                    disabled={shapeLoading || !input.trim()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    Send
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <Predictions userId={user.id} userShape={shape.dimensions} />
-          )}
+            {/* Active Predictions Strip */}
+            <ActivePredictions
+              predictions={activePredictions}
+              onLockIn={handleLockIn}
+              onDismiss={handleDismiss}
+              onRecordOutcome={handleRecordOutcome}
+              onDelete={handleDeletePrediction}
+            />
+          </div>
 
           {/* Reset Shape */}
           <button
