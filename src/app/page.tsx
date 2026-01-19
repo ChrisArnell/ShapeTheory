@@ -255,6 +255,40 @@ export default function Home() {
 
       // Remove from active
       setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
+
+      // Ask Abre to comment on the result
+      const diff = Math.abs(prediction.predicted_enjoyment - actual)
+      const isHit = diff <= 1
+
+      // Create a system message about the outcome for Abre to respond to
+      const outcomeMessage = `[PREDICTION OUTCOME: User just finished "${prediction.title}" and rated it ${actual}/10. You predicted ${prediction.predicted_enjoyment}/10. ${isHit ? 'That\'s a hit (within 1 point)!' : `That's off by ${diff} points.`} Comment on this naturally - if it was a hit, note the shape is working. If it was a miss, frame it positively: misses teach more than hits, no predictions are 100%, and finding where predictions aren't quite right is valuable data that helps everyone with similar shapes. ${!isHit ? 'Ask what didn\'t work or what surprised them.' : ''}]`
+
+      const newMessages = [...chatMessages, { role: 'user', content: outcomeMessage }]
+
+      try {
+        const [shapebaseData, userHistory] = await Promise.all([
+          getWeightedPredictions(shape.dimensions, 8.0, 15),
+          getUserHistoryForChat(user.id)
+        ])
+
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: newMessages,
+            shape: shape.dimensions,
+            shapebaseData,
+            userHistory
+          })
+        })
+        const data = await res.json()
+
+        if (data.response) {
+          setChatMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+        }
+      } catch (err) {
+        console.error('Error getting Abre comment:', err)
+      }
     }
   }
 
