@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { saveUserShape, loadUserShape } from '@/lib/db'
 import Auth from '@/components/Auth'
 import Predictions from '@/components/Predictions'
+import ShapeRadar from '@/components/ShapeRadar'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -135,11 +136,18 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8 max-w-2xl mx-auto">
       <div className="flex justify-between items-start mb-2">
-        <div>
-          <h1 className="text-3xl font-bold">Shape Theory</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Discover your entertainment shape
-          </p>
+        <div className="flex items-center gap-4">
+          {shape && shape.dimensions && (
+            <div className={`transition-all duration-500 ${shapeUpdated ? 'scale-110' : ''}`}>
+              <ShapeRadar dimensions={shape.dimensions} size={120} />
+            </div>
+          )}
+          <div>
+            <h1 className="text-3xl font-bold">Shape Theory</h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Discover your entertainment shape
+            </p>
+          </div>
         </div>
         {user && (
           <button
