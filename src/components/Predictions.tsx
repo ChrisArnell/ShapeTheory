@@ -3,26 +3,14 @@
 import { useState, useEffect } from 'react'
 import { savePrediction, getPendingPredictions, getCompletedPredictions, recordOutcome, getPredictionStats } from '@/lib/db'
 
-interface Prediction {
-  id: string
-  predicted_enjoyment: number
-  actual_enjoyment?: number
-  predicted_at: string
-  completed_at?: string
-  mood_before?: string
-  mood_after?: string
-  content: any
-}
-}
-
 interface PredictionsProps {
   userId: string
   userShape: Record<string, number>
 }
 
 export default function Predictions({ userId, userShape }: PredictionsProps) {
-  const [pending, setPending] = useState<Prediction[]>([])
-  const [completed, setCompleted] = useState<Prediction[]>([])
+  const [pending, setPending] = useState<any[]>([])
+  const [completed, setCompleted] = useState<any[]>([])
   const [stats, setStats] = useState<{ total: number; hits: number; accuracy: number | null } | null>(null)
   const [loading, setLoading] = useState(true)
   
@@ -220,12 +208,12 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
         <div className="border dark:border-gray-700 rounded-lg p-4">
           <h3 className="font-semibold mb-3">Pending ({pending.length})</h3>
           <div className="space-y-3">
-            {pending.map((p) => (
+            {pending.map((p: any) => (
               <div key={p.id} className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded">
                 {recordingId === p.id ? (
                   // Outcome recording form
                   <div className="space-y-3">
-                    <div className="font-medium">{p.content.title}</div>
+                    <div className="font-medium">{p.content?.title || 'Unknown'}</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       You predicted: {p.predicted_enjoyment}/10
                     </div>
@@ -284,7 +272,7 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
                   // Pending prediction display
                   <div className="flex justify-between items-center">
                     <div>
-                      <div className="font-medium">{p.content.title}</div>
+                      <div className="font-medium">{p.content?.title || 'Unknown'}</div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">
                         Predicted: {p.predicted_enjoyment}/10 • {formatDate(p.predicted_at)}
                         {p.mood_before && ` • Mood: ${p.mood_before}`}
@@ -312,13 +300,13 @@ export default function Predictions({ userId, userShape }: PredictionsProps) {
         <div className="border dark:border-gray-700 rounded-lg p-4">
           <h3 className="font-semibold mb-3">History</h3>
           <div className="space-y-2">
-            {completed.slice(0, 5).map((p) => {
-              const diff = p.actual_enjoyment! - p.predicted_enjoyment
+            {completed.slice(0, 5).map((p: any) => {
+              const diff = p.actual_enjoyment - p.predicted_enjoyment
               const hit = Math.abs(diff) <= 2
               return (
                 <div key={p.id} className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm">
                   <div className="flex justify-between">
-                    <span className="font-medium">{p.content.title}</span>
+                    <span className="font-medium">{p.content?.title || 'Unknown'}</span>
                     <span className={hit ? 'text-green-600' : 'text-red-600'}>
                       {hit ? '✓ Hit' : '✗ Miss'}
                     </span>
