@@ -139,7 +139,7 @@ export default function Home() {
         <div className="flex items-center gap-4">
           {shape && shape.dimensions && (
             <div className={`transition-all duration-500 ${shapeUpdated ? 'scale-110' : ''}`}>
-              <ShapeRadar dimensions={shape.dimensions} size={120} />
+              <ShapeRadar dimensions={shape.dimensions} size={150} />
             </div>
           )}
           <div>

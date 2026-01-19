@@ -7,21 +7,21 @@ interface ShapeRadarProps {
   size?: number
 }
 
-// Shorter labels for the radar chart
+// Short 1-2 letter labels for the radar chart
 const dimensionLabels: Record<string, string> = {
-  darkness: 'Dark',
-  intellectual_engagement: 'Intellect',
-  sentimentality: 'Sentiment',
-  absurdism: 'Absurd',
-  craft_obsession: 'Craft',
-  pandering_tolerance: 'Pandering',
-  emotional_directness: 'Direct',
-  vulnerability_appreciation: 'Vulnerable',
-  novelty_seeking: 'Novelty',
-  working_class_authenticity: 'Authentic'
+  darkness: 'Dk',
+  intellectual_engagement: 'IQ',
+  sentimentality: 'St',
+  absurdism: 'Ab',
+  craft_obsession: 'Cr',
+  pandering_tolerance: 'Pn',
+  emotional_directness: 'Ed',
+  vulnerability_appreciation: 'Vu',
+  novelty_seeking: 'Nv',
+  working_class_authenticity: 'Au'
 }
 
-export default function ShapeRadar({ dimensions, size = 200 }: ShapeRadarProps) {
+export default function ShapeRadar({ dimensions, size = 150 }: ShapeRadarProps) {
   const data = Object.entries(dimensions).map(([key, value]) => ({
     dimension: dimensionLabels[key] || key,
     value: value,
@@ -31,11 +31,11 @@ export default function ShapeRadar({ dimensions, size = 200 }: ShapeRadarProps) 
   return (
     <div style={{ width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+        <RadarChart cx="50%" cy="50%" outerRadius="60%" data={data}>
           <PolarGrid stroke="#374151" />
           <PolarAngleAxis
             dataKey="dimension"
-            tick={{ fill: '#9CA3AF', fontSize: 9 }}
+            tick={{ fill: '#9CA3AF', fontSize: 10 }}
           />
           <Radar
             name="Shape"
