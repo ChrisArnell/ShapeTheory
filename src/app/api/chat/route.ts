@@ -30,12 +30,30 @@ const tools: Anthropic.Messages.Tool[] = [
 
 export async function POST(request: Request) {
   try {
-    const { messages, shape } = await request.json()
+    const { messages, shape, shapebaseData } = await request.json()
 
     // Build shape context for the system prompt
     const shapeContext = Object.entries(shape)
       .map(([dim, val]) => `${dim.replace(/_/g, ' ')}: ${val}/10`)
       .join(', ')
+
+    // Build shapebase context if we have data from similar users
+    let shapebaseContext = ''
+    if (shapebaseData && shapebaseData.length > 0) {
+      const entries = shapebaseData.map((item: any) => {
+        const rating = item.weighted_avg_enjoyment?.toFixed(1) || '?'
+        const count = item.rating_count || 0
+        const weight = item.total_weight?.toFixed(2) || '?'
+        return `- ${item.content_title} (${item.content_type}): ${rating}/10 avg from ${count} similar users (weight: ${weight})`
+      }).join('\n')
+
+      shapebaseContext = `
+
+EVIDENCE FROM SIMILAR USERS (prioritize this over your assumptions):
+${entries}
+
+When these ratings conflict with your instincts, trust the data. If a show you'd expect to match well has poor ratings from similar users, mention that: "My instinct says you'd like this, but users with your shape averaged 4.2/10 - something's not matching."`
+    }
 
     const systemPrompt = `You are Shape, an entertainment recommendation guide. You understand entertainment through dimensional analysis rather than genre categories.
 
@@ -67,7 +85,7 @@ The user learning their shape by participating in calibrating it is part of the 
 
 Be direct and specific. No hedging. The point is prediction accuracy, not making users feel good about every suggestion.
 
-Keep responses concise. This is a conversation, not an essay.`
+Keep responses concise. This is a conversation, not an essay.${shapebaseContext}`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',

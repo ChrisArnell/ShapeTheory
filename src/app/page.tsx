@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { saveUserShape, loadUserShape } from '@/lib/db'
+import { saveUserShape, loadUserShape, getWeightedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
 import Predictions from '@/components/Predictions'
 import ShapeRadar from '@/components/ShapeRadar'
@@ -88,12 +88,16 @@ export default function Home() {
     setShapeLoading(true)
 
     try {
+      // Fetch evidence from similar users (shapebase)
+      const shapebaseData = await getWeightedPredictions(shape.dimensions, 8.0, 15)
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          shape: shape.dimensions
+          shape: shape.dimensions,
+          shapebaseData
         })
       })
       const data = await res.json()
