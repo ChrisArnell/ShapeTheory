@@ -15,6 +15,7 @@ export default function Home() {
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [activeTab, setActiveTab] = useState<'chat' | 'predictions'>('chat')
+  const [shapeUpdated, setShapeUpdated] = useState(false)
 
   // Check auth state on mount
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function Home() {
 
   const sendMessage = async () => {
     if (!input.trim() || !shape) return
-    
+
     const newMessages = [...chatMessages, { role: 'user', content: input }]
     setChatMessages(newMessages)
     setInput('')
@@ -89,17 +90,30 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           messages: newMessages,
-          shape: shape.dimensions 
+          shape: shape.dimensions
         })
       })
       const data = await res.json()
+
+      // If Claude updated the shape, save it
+      if (data.shapeUpdates && data.shapeUpdates.updates) {
+        const newDimensions = { ...shape.dimensions, ...data.shapeUpdates.updates }
+        const saved = await saveUserShape(user.id, newDimensions)
+        if (saved) {
+          setShape({ ...shape, dimensions: newDimensions })
+          setShapeUpdated(true)
+          // Clear the indicator after 3 seconds
+          setTimeout(() => setShapeUpdated(false), 3000)
+        }
+      }
+
       setChatMessages([...newMessages, { role: 'assistant', content: data.response }])
     } catch (err) {
       console.error('Error sending message:', err)
     }
-    
+
     setShapeLoading(false)
   }
 
@@ -167,8 +181,19 @@ export default function Home() {
       ) : (
         <div className="space-y-6">
           {/* Shape Display */}
-          <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <h2 className="font-semibold mb-3">Your Shape</h2>
+          <div className={`p-4 rounded-lg transition-colors duration-300 ${
+            shapeUpdated
+              ? 'bg-green-100 dark:bg-green-900 ring-2 ring-green-500'
+              : 'bg-gray-100 dark:bg-gray-800'
+          }`}>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-semibold">Your Shape</h2>
+              {shapeUpdated && (
+                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">
+                  Updated!
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               {shape.dimensions && Object.entries(shape.dimensions).map(([key, value]: [string, any]) => (
                 <div key={key} className="flex items-center gap-2">
