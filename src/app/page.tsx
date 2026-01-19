@@ -41,13 +41,13 @@ export default function Home() {
 
   const loadExistingShape = async () => {
     if (!user) return
-    
+
     const existingShape = await loadUserShape(user.id)
     if (existingShape && Object.keys(existingShape).length > 0) {
-      setShape({ dimensions: existingShape, summary: 'Welcome back. Your shape is loaded.' })
-      setChatMessages([{ 
-        role: 'assistant', 
-        content: "Welcome back. I remember your shape. What are you in the mood for?" 
+      setShape({ dimensions: existingShape, summary: 'Welcome back!' })
+      setChatMessages([{
+        role: 'assistant',
+        content: "Hey! Abre here. Good to see you again. Looking for something to watch or listen to? Or want to work more on your shape? I can run a quick quiz on any dimension that feels off, or you can tell me more things you love or hate and we'll keep refining."
       }])
     }
   }
