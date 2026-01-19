@@ -231,6 +231,166 @@ export async function recordOutcome(
   return true
 }
 
+// Get weighted predictions from similar users for chat context
+export async function getWeightedPredictions(
+  userShape: Record<string, number>,
+  sigma: number = 8.0,
+  limit: number = 10
+) {
+  // Call the database function we created
+  const { data, error } = await supabase
+    .rpc('get_weighted_predictions', {
+      target_shape: userShape,
+      target_content_id: null,
+      sigma: sigma,
+      min_weight: 0.1
+    })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching weighted predictions:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Get weighted prediction for a specific piece of content
+export async function getWeightedPredictionForContent(
+  userShape: Record<string, number>,
+  contentId: string,
+  sigma: number = 8.0
+) {
+  const { data, error } = await supabase
+    .rpc('get_weighted_predictions', {
+      target_shape: userShape,
+      target_content_id: contentId,
+      sigma: sigma,
+      min_weight: 0.05
+    })
+    .single()
+
+  if (error) {
+    // No data is okay - might not have predictions for this content
+    return null
+  }
+
+  return data
+}
+
+// Search content by title (with hierarchy)
+export async function searchContent(
+  query: string,
+  contentType?: string,
+  limit: number = 10
+) {
+  let q = supabase
+    .from('content')
+    .select(`
+      id,
+      title,
+      subtitle,
+      content_type,
+      year,
+      parent_id,
+      consensus_shape,
+      rating_count
+    `)
+    .ilike('title', `%${query}%`)
+    .order('rating_count', { ascending: false })
+    .limit(limit)
+
+  if (contentType) {
+    q = q.eq('content_type', contentType)
+  }
+
+  const { data, error } = await q
+
+  if (error) {
+    console.error('Error searching content:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Add new content with hierarchy support
+export async function addContent(
+  title: string,
+  contentType: string,
+  options?: {
+    subtitle?: string
+    year?: number
+    parentId?: string
+    externalId?: string
+    externalSource?: string
+  }
+) {
+  const { data, error } = await supabase
+    .from('content')
+    .insert({
+      title,
+      content_type: contentType,
+      subtitle: options?.subtitle,
+      year: options?.year,
+      parent_id: options?.parentId,
+      external_id: options?.externalId,
+      external_source: options?.externalSource
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Error adding content:', error)
+    return null
+  }
+
+  return data.id
+}
+
+// Get content with its full hierarchy (e.g., episode → season → show)
+export async function getContentWithHierarchy(contentId: string) {
+  const { data, error } = await supabase
+    .from('content')
+    .select(`
+      id,
+      title,
+      subtitle,
+      content_type,
+      year,
+      parent_id,
+      consensus_shape,
+      rating_count
+    `)
+    .eq('id', contentId)
+    .single()
+
+  if (error || !data) {
+    return null
+  }
+
+  // Recursively get parents
+  const hierarchy = [data]
+  let current = data
+
+  while (current.parent_id) {
+    const { data: parent } = await supabase
+      .from('content')
+      .select('*')
+      .eq('id', current.parent_id)
+      .single()
+
+    if (parent) {
+      hierarchy.push(parent)
+      current = parent
+    } else {
+      break
+    }
+  }
+
+  return hierarchy.reverse() // [show, season, episode]
+}
+
 // Get prediction accuracy stats for a user
 export async function getPredictionStats(userId: string) {
   const { data, error } = await supabase
