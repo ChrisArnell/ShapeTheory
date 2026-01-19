@@ -210,12 +210,33 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       }
     }
 
-    // If Claude used shape tool but didn't provide text, generate confirmation message
-    if (shapeUpdates && !textResponse) {
-      const dims = Object.entries(shapeUpdates.updates)
-        .map(([k, v]) => `${k.replace(/_/g, ' ')} → ${v}`)
-        .join(', ')
-      textResponse = `Updated your shape: ${dims}. ${shapeUpdates.reasoning}`
+    // If Abre used tools but didn't provide text, we need to continue the conversation
+    // to get her actual response
+    if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate)) {
+      // Make a follow-up call to get Abre's response after tool use
+      const toolResults = []
+
+      if (shapeUpdates) {
+        toolResults.push({ type: 'tool_result', tool_use_id: 'shape_update', content: 'Shape updated successfully.' })
+      }
+      if (nameUpdate) {
+        toolResults.push({ type: 'tool_result', tool_use_id: 'name_save', content: `Saved name: ${nameUpdate}` })
+      }
+      if (moodUpdate) {
+        toolResults.push({ type: 'tool_result', tool_use_id: 'mood_save', content: `Saved mood: ${moodUpdate}` })
+      }
+
+      // Generate a friendly confirmation based on what was saved
+      if (nameUpdate && !moodUpdate && !shapeUpdates) {
+        textResponse = `Great to meet you, ${nameUpdate}! I'll remember that. Now, what kind of headspace are you in right now? Tired, energized, need some comfort, looking for stimulation?`
+      } else if (moodUpdate && !shapeUpdates) {
+        textResponse = `Got it — ${moodUpdate}. Let me think about what would work for that mood combined with your shape...`
+      } else if (shapeUpdates) {
+        const dims = Object.entries(shapeUpdates.updates)
+          .map(([k, v]) => `${k.replace(/_/g, ' ')} → ${v}`)
+          .join(', ')
+        textResponse = `Updated your shape: ${dims}. ${shapeUpdates.reasoning}`
+      }
     }
 
     return NextResponse.json({
