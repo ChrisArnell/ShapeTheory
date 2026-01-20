@@ -26,6 +26,9 @@ interface LocalPrediction {
   status: 'suggested' | 'locked' | 'completed'
   predicted_at?: string
   dbId?: string  // database ID once locked in
+  external_id?: string
+  external_source?: string
+  year?: number
 }
 
 interface CompletedPrediction {
@@ -291,25 +294,57 @@ export default function Home() {
     }])
   }
 
-  // Lock in a suggested prediction - save to database
+  // Lock in a suggested prediction - save to database with canonical content lookup
   const handleLockIn = async (prediction: LocalPrediction) => {
     if (!user || !shape) return
+
+    // Look up canonical content info from TMDB/MusicBrainz
+    let externalId: string | undefined
+    let externalSource: string | undefined
+    let year: number | undefined
+    let canonicalTitle = prediction.title
+
+    try {
+      const lookupRes = await fetch('/api/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: prediction.title,
+          content_type: prediction.content_type
+        })
+      })
+      const lookupData = await lookupRes.json()
+
+      if (lookupData.results && lookupData.results.length > 0) {
+        // Take the first/best match
+        const match = lookupData.results[0]
+        externalId = match.external_id
+        externalSource = match.external_source
+        year = match.year
+        canonicalTitle = match.title // Use canonical title from API
+      }
+    } catch (err) {
+      console.error('Content lookup failed, saving with title only:', err)
+    }
 
     // Store hit_probability in predicted_enjoyment field (0-100)
     const dbId = await savePrediction(
       user.id,
-      prediction.title,
+      canonicalTitle,
       prediction.content_type,
       prediction.hit_probability,
       shape.dimensions,
-      undefined // mood_before - could capture this
+      undefined, // mood_before
+      externalId,
+      externalSource,
+      year
     )
 
     if (dbId) {
       setActivePredictions(prev =>
         prev.map(p =>
           p.id === prediction.id
-            ? { ...p, status: 'locked' as const, dbId }
+            ? { ...p, title: canonicalTitle, status: 'locked' as const, dbId, external_id: externalId, external_source: externalSource, year }
             : p
         )
       )
@@ -605,35 +640,45 @@ export default function Home() {
               </button>
 
               {historyExpanded && (
-                <div className="overflow-x-auto bg-white/90 dark:bg-gray-900/90">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-100 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-2 text-left">Title</th>
-                        <th className="px-4 py-2 text-center">Probability</th>
-                        <th className="px-4 py-2 text-center">Outcome</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {completedPredictions.map((pred) => (
-                        <tr key={pred.id} className="border-t dark:border-gray-700">
-                          <td className="px-4 py-2">{pred.title}</td>
-                          <td className="px-4 py-2 text-center">{pred.hit_probability}%</td>
-                          <td className="px-4 py-2 text-center">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              pred.outcome === 'hit'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : pred.outcome === 'miss'
-                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                            }`}>
-                              {pred.outcome === 'hit' ? '✓ Hit' : pred.outcome === 'miss' ? '✗ Miss' : '~ Fence'}
-                            </span>
-                          </td>
+                <div className="bg-white/90 dark:bg-gray-900/90">
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Title</th>
+                          <th className="px-4 py-2 text-center">Type</th>
+                          <th className="px-4 py-2 text-center">Prob</th>
+                          <th className="px-4 py-2 text-center">Outcome</th>
+                          <th className="px-4 py-2 text-right">Date</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {completedPredictions.map((pred) => (
+                          <tr key={pred.id} className="border-t dark:border-gray-700">
+                            <td className="px-4 py-2">{pred.title}</td>
+                            <td className="px-4 py-2 text-center text-gray-500 capitalize text-xs">
+                              {pred.content_type.replace('_', ' ')}
+                            </td>
+                            <td className="px-4 py-2 text-center">{pred.hit_probability}%</td>
+                            <td className="px-4 py-2 text-center">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                pred.outcome === 'hit'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  : pred.outcome === 'miss'
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                              }`}>
+                                {pred.outcome === 'hit' ? '✓ Hit' : pred.outcome === 'miss' ? '✗ Miss' : '~ Fence'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-500 text-xs">
+                              {new Date(pred.completed_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Calibration Summary */}
                   <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-sm">

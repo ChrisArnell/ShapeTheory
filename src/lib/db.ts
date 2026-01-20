@@ -149,6 +149,70 @@ export async function loadUserShape(userId: string) {
   return dimensions
 }
 
+// Find or create content record, preferring external ID match
+export async function findOrCreateContent(
+  title: string,
+  contentType: string,
+  externalId?: string,
+  externalSource?: string,
+  year?: number,
+  metadata?: Record<string, any>
+) {
+  // First, try to find by external ID (most reliable)
+  if (externalId && externalSource) {
+    const { data: existingByExternal } = await supabase
+      .from('content')
+      .select('id, title')
+      .eq('external_id', externalId)
+      .eq('external_source', externalSource)
+      .single()
+
+    if (existingByExternal) {
+      return existingByExternal.id
+    }
+  }
+
+  // Fall back to case-insensitive title match
+  const { data: existingByTitle } = await supabase
+    .from('content')
+    .select('id')
+    .ilike('title', title)
+    .eq('content_type', contentType)
+    .single()
+
+  if (existingByTitle) {
+    // If we have external ID, update the existing record
+    if (externalId && externalSource) {
+      await supabase
+        .from('content')
+        .update({ external_id: externalId, external_source: externalSource, year })
+        .eq('id', existingByTitle.id)
+    }
+    return existingByTitle.id
+  }
+
+  // Create new content record
+  const { data: newContent, error: contentError } = await supabase
+    .from('content')
+    .insert({
+      title,
+      content_type: contentType || 'unknown',
+      external_id: externalId,
+      external_source: externalSource,
+      year,
+      metadata: metadata || {}
+    })
+    .select('id')
+    .single()
+
+  if (contentError) {
+    console.error('Error creating content:', contentError)
+    return null
+  }
+
+  return newContent.id
+}
+
 // Save a prediction (commit to watching something)
 export async function savePrediction(
   userId: string,
@@ -156,31 +220,23 @@ export async function savePrediction(
   contentType: string,
   predictedEnjoyment: number,
   userShapeSnapshot: Record<string, number>,
-  moodBefore?: string
+  moodBefore?: string,
+  externalId?: string,
+  externalSource?: string,
+  year?: number
 ) {
-  // First, find or create the content record
-  let { data: content } = await supabase
-    .from('content')
-    .select('id')
-    .eq('title', contentTitle)
-    .single()
+  // Find or create canonical content record
+  const contentId = await findOrCreateContent(
+    contentTitle,
+    contentType,
+    externalId,
+    externalSource,
+    year
+  )
 
-  if (!content) {
-    // Create content record
-    const { data: newContent, error: contentError } = await supabase
-      .from('content')
-      .insert({ 
-        title: contentTitle, 
-        content_type: contentType || 'unknown' 
-      })
-      .select('id')
-      .single()
-
-    if (contentError) {
-      console.error('Error creating content:', contentError)
-      return null
-    }
-    content = newContent
+  if (!contentId) {
+    console.error('Failed to find/create content')
+    return null
   }
 
   // Save prediction with shape snapshot
@@ -188,7 +244,7 @@ export async function savePrediction(
     .from('predictions')
     .insert({
       user_id: userId,
-      content_id: content.id,
+      content_id: contentId,
       predicted_enjoyment: predictedEnjoyment,
       user_shape_snapshot: userShapeSnapshot,
       mood_before: moodBefore,
