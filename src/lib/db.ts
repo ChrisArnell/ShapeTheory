@@ -344,6 +344,21 @@ export async function recordOutcome(
   return true
 }
 
+// Delete a prediction (when user dismisses without completing)
+export async function deletePrediction(predictionId: string) {
+  const { error } = await supabase
+    .from('predictions')
+    .delete()
+    .eq('id', predictionId)
+
+  if (error) {
+    console.error('Error deleting prediction:', error)
+    return false
+  }
+
+  return true
+}
+
 // Get weighted predictions from similar users for chat context
 export async function getWeightedPredictions(
   userShape: Record<string, number>,
