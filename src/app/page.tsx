@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { motion, useAnimation } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
@@ -102,10 +102,10 @@ export default function Home() {
 
   // Shape animation state
   const [shapeAnimating, setShapeAnimating] = useState(false)
+  const [animationPhase, setAnimationPhase] = useState<'idle' | 'rising' | 'morphing' | 'holding' | 'falling'>('idle')
   const [changedDimensions, setChangedDimensions] = useState<string[]>([])
   const [displayDimensions, setDisplayDimensions] = useState<Record<string, number> | null>(null)
   const [glowIntensity, setGlowIntensity] = useState(0)
-  const bgShapeControls = useAnimation()
 
   // Check auth state on mount
   useEffect(() => {
@@ -141,16 +141,14 @@ export default function Home() {
     newDimensions: Record<string, number>,
     changed: string[]
   ) => {
+    console.log('🎬 Starting shape animation', { changed, oldDimensions, newDimensions })
+
     setShapeAnimating(true)
     setChangedDimensions(changed)
     setDisplayDimensions(oldDimensions)
 
     // Phase 1: Rise up - shape comes forward with glow (0.8s)
-    bgShapeControls.start({
-      opacity: 0.7,
-      scale: 1.15,
-      transition: { duration: 0.8, ease: 'easeOut' }
-    })
+    setAnimationPhase('rising')
 
     // Animate glow intensity up
     const glowSteps = 20
@@ -160,6 +158,7 @@ export default function Home() {
     }
 
     // Phase 2: Morph the shape values (0.6s)
+    setAnimationPhase('morphing')
     const morphSteps = 30
     for (let i = 0; i <= morphSteps; i++) {
       const t = i / morphSteps
@@ -174,14 +173,11 @@ export default function Home() {
     }
 
     // Phase 3: Hold with full glow (0.8s)
+    setAnimationPhase('holding')
     await new Promise(r => setTimeout(r, 800))
 
     // Phase 4: Fade back (0.8s)
-    bgShapeControls.start({
-      opacity: 0.12,
-      scale: 1,
-      transition: { duration: 0.8, ease: 'easeInOut' }
-    })
+    setAnimationPhase('falling')
 
     // Animate glow intensity down
     for (let i = glowSteps; i >= 0; i--) {
@@ -189,11 +185,16 @@ export default function Home() {
       setGlowIntensity(i / glowSteps)
     }
 
+    // Wait for fade animation to complete
+    await new Promise(r => setTimeout(r, 800))
+
     // Cleanup
+    setAnimationPhase('idle')
     setShapeAnimating(false)
     setChangedDimensions([])
     setDisplayDimensions(null)
-  }, [bgShapeControls])
+    console.log('🎬 Animation complete')
+  }, [])
 
   const loadExistingShape = async () => {
     if (!user) return
@@ -514,7 +515,14 @@ export default function Home() {
         <motion.div
           className="fixed inset-0 flex items-center justify-center pointer-events-none z-0"
           initial={{ opacity: 0.12, scale: 1 }}
-          animate={bgShapeControls}
+          animate={{
+            opacity: animationPhase === 'idle' || animationPhase === 'falling' ? 0.12 : 0.7,
+            scale: animationPhase === 'idle' || animationPhase === 'falling' ? 1 : 1.15,
+          }}
+          transition={{
+            duration: animationPhase === 'rising' ? 0.8 : animationPhase === 'falling' ? 0.8 : 0.3,
+            ease: animationPhase === 'rising' ? 'easeOut' : 'easeInOut'
+          }}
         >
           <ShapeRadar
             dimensions={displayDimensions || shape.dimensions}
