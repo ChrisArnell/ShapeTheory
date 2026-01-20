@@ -214,6 +214,8 @@ export async function findOrCreateContent(
 }
 
 // Save a prediction (commit to watching something)
+// predictedEnjoyment is the PRIMARY prediction (user's if user_initiated, AI's otherwise)
+// aiPredictedEnjoyment is Abre's prediction when user provides their own
 export async function savePrediction(
   userId: string,
   contentTitle: string,
@@ -223,7 +225,8 @@ export async function savePrediction(
   moodBefore?: string,
   externalId?: string,
   externalSource?: string,
-  year?: number
+  year?: number,
+  aiPredictedEnjoyment?: number
 ) {
   // Find or create canonical content record
   const contentId = await findOrCreateContent(
@@ -246,6 +249,7 @@ export async function savePrediction(
       user_id: userId,
       content_id: contentId,
       predicted_enjoyment: predictedEnjoyment,
+      ai_predicted_enjoyment: aiPredictedEnjoyment,
       user_shape_snapshot: userShapeSnapshot,
       mood_before: moodBefore,
       predicted_at: new Date().toISOString()
