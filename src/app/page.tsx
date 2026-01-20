@@ -457,7 +457,7 @@ export default function Home() {
       // Ask Abre to comment on the result (skip for fence - it's ambiguous)
       if (outcome !== 'fence') {
         const wasHit = outcome === 'hit'
-        const outcomeMessage = `[PREDICTION OUTCOME: User just finished "${prediction.title}". You predicted ${prediction.hit_probability}% chance it would hit. Result: ${wasHit ? 'HIT - it landed!' : 'MISS - didn\'t work for them.'}. Comment naturally - ${wasHit ? 'celebrate that the shape is working, maybe note what dimension made this click.' : 'frame positively: misses teach more than hits, no predictions are 100%, this helps calibrate for everyone with similar shapes. Ask what didn\'t land or what they were hoping for.'}]`
+        const outcomeMessage = `[PREDICTION OUTCOME: "${prediction.title}" - predicted ${prediction.hit_probability}%, result: ${wasHit ? 'HIT' : 'MISS'}. Keep it brief (1-2 sentences). ${wasHit ? 'Quick acknowledgment, maybe mention ONE dimension that fits.' : 'Brief, warm response. Ask what didn\'t land.'} Don't be over the top.]`
 
         const newMessages = [...chatMessages, { role: 'user', content: outcomeMessage }]
 
