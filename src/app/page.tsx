@@ -23,6 +23,8 @@ interface LocalPrediction {
   title: string
   content_type: string
   hit_probability: number
+  ai_probability?: number  // Abre's prediction (when user provides their own)
+  user_initiated?: boolean // true if user provided hit_probability
   reasoning?: string
   status: 'suggested' | 'locked' | 'completed'
   predicted_at?: string
@@ -98,6 +100,7 @@ export default function Home() {
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [showAppInfo, setShowAppInfo] = useState(false)
   const [showAbreInfo, setShowAbreInfo] = useState(false)
+  const [showWaysToUse, setShowWaysToUse] = useState(false)
   const [chatSessionRestored, setChatSessionRestored] = useState(false)
 
   // Shape animation state
@@ -337,6 +340,8 @@ export default function Home() {
           title: pred.title,
           content_type: pred.content_type,
           hit_probability: pred.hit_probability,
+          ai_probability: pred.ai_probability,
+          user_initiated: pred.user_initiated,
           reasoning: pred.reasoning,
           status: 'suggested' as const
         }))
@@ -403,6 +408,7 @@ export default function Home() {
     }
 
     // Store hit_probability in predicted_enjoyment field (0-100)
+    // If user_initiated, hit_probability is user's prediction and ai_probability is Abre's
     const dbId = await savePrediction(
       user.id,
       canonicalTitle,
@@ -412,7 +418,8 @@ export default function Home() {
       undefined, // mood_before
       externalId,
       externalSource,
-      year
+      year,
+      prediction.ai_probability // Abre's prediction when user provides their own
     )
 
     if (dbId) {
@@ -583,6 +590,14 @@ export default function Home() {
           >
             Who is Abre?
           </button>
+          {shape && (
+            <button
+              onClick={() => setShowWaysToUse(true)}
+              className="text-xs px-2 py-1 border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30"
+            >
+              Ways to use
+            </button>
+          )}
         </div>
       )}
 
@@ -636,6 +651,54 @@ export default function Home() {
             </div>
             <button
               onClick={() => setShowAbreInfo(false)}
+              className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Ways to Use Popup */}
+      {showWaysToUse && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWaysToUse(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg mx-4 shadow-xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">Ways to Use Shape Theory</h2>
+            <div className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
+
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Ask for recommendations</h3>
+                <p className="text-gray-500 dark:text-gray-400 italic mb-1">"What should I watch tonight?" or "I need something light"</p>
+                <p>Abre will suggest content based on your shape and current mood. She'll give you a mix of high and low probability matches — the misses help define your edges.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Take a dimension quiz</h3>
+                <p className="text-gray-500 dark:text-gray-400 italic mb-1">"Quiz me on darkness" or "I want to explore my sentimentality"</p>
+                <p>Abre will ask you targeted questions to refine specific dimensions of your shape. Great for calibrating areas you're uncertain about.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Lock in Abre's predictions</h3>
+                <p className="text-gray-500 dark:text-gray-400 italic mb-1">"Lock that in" or "Add it to my list"</p>
+                <p>When Abre recommends something you're going to try, lock it in. After you watch/listen, report back — this closes the loop and helps us learn.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Make your own predictions</h3>
+                <p className="text-gray-500 dark:text-gray-400 italic mb-1">"I'm about to watch Bear S3E7 and I think 80% it hits"</p>
+                <p>You can predict your own enjoyment before watching. Abre will also give her prediction — now you're both on record. Polarizing content teaches us the most about your shape.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Share what you loved or hated</h3>
+                <p className="text-gray-500 dark:text-gray-400 italic mb-1">"I just finished Severance and it was incredible" or "I couldn't get through The Bear"</p>
+                <p>Strong reactions — especially surprises — help refine your shape. Abre may propose adjustments based on patterns she notices.</p>
+              </div>
+
+            </div>
+            <button
+              onClick={() => setShowWaysToUse(false)}
               className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Got it

@@ -56,7 +56,7 @@ const tools: Anthropic.Messages.Tool[] = [
   },
   {
     name: "create_prediction",
-    description: "Create a prediction when (1) the user commits to watching/listening to something you recommended, OR (2) the user makes their OWN prediction about something they're about to consume. If the user provides their own probability (e.g., 'I think there's an 80% chance I'll like it'), use THEIR number. The prediction appears in their active list.",
+    description: "Create a prediction when (1) the user commits to watching/listening to something you recommended, OR (2) the user makes their OWN prediction about something they're about to consume. When user_initiated is true, ALWAYS provide BOTH the user's probability AND your own ai_probability so we can track both predictions.",
     input_schema: {
       type: "object",
       properties: {
@@ -71,7 +71,11 @@ const tools: Anthropic.Messages.Tool[] = [
         },
         hit_probability: {
           type: "number",
-          description: "Probability (0-100) that this will 'hit'. If the user stated their own probability, use their number. Otherwise provide your estimate."
+          description: "The PRIMARY probability (0-100). If user_initiated, this is the USER's stated probability. Otherwise it's your estimate."
+        },
+        ai_probability: {
+          type: "number",
+          description: "YOUR probability estimate (0-100). REQUIRED when user_initiated is true — we want to track both predictions. Not needed when you're the only one predicting."
         },
         reasoning: {
           type: "string",
@@ -79,7 +83,7 @@ const tools: Anthropic.Messages.Tool[] = [
         },
         user_initiated: {
           type: "boolean",
-          description: "True if the USER provided the probability themselves, false if you (Abre) estimated it"
+          description: "True if the USER provided their own probability, false if you (Abre) are making the prediction alone"
         }
       },
       required: ["title", "content_type", "hit_probability"]
@@ -215,7 +219,12 @@ Users can also make their OWN predictions! If they say something like:
 - "Gonna try that album, I'd say 60% it works for me"
 - "Lock in 75% on Severance"
 
-Use create_prediction with THEIR probability (set user_initiated: true). Acknowledge their prediction warmly: "Locked in! 80% on Bear S3E7 — let's see how you do." Don't second-guess their probability, just track it.
+Use create_prediction with:
+- user_initiated: true
+- hit_probability: their stated probability
+- ai_probability: YOUR estimate for their shape (important! we want to track both)
+
+Acknowledge both predictions warmly: "Locked in! You're calling 80% on Bear S3E7 — I'd say 72% based on your shape. Let's see who's closer!" This creates a friendly competition and gives us two data points.
 
 This is key — we want to close loops. Recommendations without outcomes don't teach us anything. Make it easy and natural to commit.
 
@@ -248,7 +257,9 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       title: string
       content_type: string
       hit_probability: number
+      ai_probability?: number
       reasoning?: string
+      user_initiated?: boolean
     }[] = []
 
     for (const block of response.content) {
@@ -266,7 +277,9 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
             title: string
             content_type: string
             hit_probability: number
+            ai_probability?: number
             reasoning?: string
+            user_initiated?: boolean
           })
         }
       }
