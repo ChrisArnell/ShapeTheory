@@ -140,7 +140,7 @@ export default function Home() {
     setReadInfoButtons(prev => {
       const newSet = new Set(prev)
       newSet.add(key)
-      localStorage.setItem('shapetheory_read_info', JSON.stringify([...newSet]))
+      localStorage.setItem('shapetheory_read_info', JSON.stringify(Array.from(newSet)))
       return newSet
     })
   }
