@@ -648,6 +648,15 @@ export default function Home() {
         <Auth onAuth={() => {}} />
       ) : !shape ? (
         <div className="space-y-4">
+          {/* Abre intro for new users */}
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+            <p className="text-gray-700 dark:text-gray-300">
+              Hey there! I'm <strong>Abre</strong>. I'm going to help you discover your entertainment shape — a 10-dimensional profile of how you experience content. Not what genres you like, but <em>how</em> you like things. Your tolerance for darkness, your need for intellectual engagement, your appreciation for craft... that kind of thing.
+            </p>
+            <p className="text-gray-700 dark:text-gray-300 mt-3">
+              To get started, just tell me some things you love. Movies, shows, music, comedians, podcasts — anything. The more variety, the better I can see your shape.
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-medium mb-2">
               List some favorites — movies, shows, music, comedians, anything:
