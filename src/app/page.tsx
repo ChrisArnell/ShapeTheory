@@ -703,18 +703,6 @@ export default function Home() {
               ))}
             </div>
           </div>
-
-          {/* Reset Shape */}
-          <button
-            onClick={() => {
-              setShape(null)
-              setFavorites('')
-              setChatMessages([])
-            }}
-            className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            Recapture my shape
-          </button>
         </div>
       )}
       </div>
