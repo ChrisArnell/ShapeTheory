@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { motion, useAnimation } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
@@ -99,6 +100,13 @@ export default function Home() {
   const [showAbreInfo, setShowAbreInfo] = useState(false)
   const [chatSessionRestored, setChatSessionRestored] = useState(false)
 
+  // Shape animation state
+  const [shapeAnimating, setShapeAnimating] = useState(false)
+  const [changedDimensions, setChangedDimensions] = useState<string[]>([])
+  const [displayDimensions, setDisplayDimensions] = useState<Record<string, number> | null>(null)
+  const [glowIntensity, setGlowIntensity] = useState(0)
+  const bgShapeControls = useAnimation()
+
   // Check auth state on mount
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -126,6 +134,66 @@ export default function Home() {
       saveChatSession(chatMessages, user.id)
     }
   }, [chatMessages, user, chatSessionRestored])
+
+  // Animate shape update - "level up" effect
+  const animateShapeUpdate = useCallback(async (
+    oldDimensions: Record<string, number>,
+    newDimensions: Record<string, number>,
+    changed: string[]
+  ) => {
+    setShapeAnimating(true)
+    setChangedDimensions(changed)
+    setDisplayDimensions(oldDimensions)
+
+    // Phase 1: Rise up - shape comes forward with glow (0.8s)
+    bgShapeControls.start({
+      opacity: 0.7,
+      scale: 1.15,
+      transition: { duration: 0.8, ease: 'easeOut' }
+    })
+
+    // Animate glow intensity up
+    const glowSteps = 20
+    for (let i = 0; i <= glowSteps; i++) {
+      await new Promise(r => setTimeout(r, 40))
+      setGlowIntensity(i / glowSteps)
+    }
+
+    // Phase 2: Morph the shape values (0.6s)
+    const morphSteps = 30
+    for (let i = 0; i <= morphSteps; i++) {
+      const t = i / morphSteps
+      const interpolated: Record<string, number> = {}
+      for (const key of Object.keys(newDimensions)) {
+        const oldVal = oldDimensions[key] || 5
+        const newVal = newDimensions[key]
+        interpolated[key] = oldVal + (newVal - oldVal) * t
+      }
+      setDisplayDimensions(interpolated)
+      await new Promise(r => setTimeout(r, 20))
+    }
+
+    // Phase 3: Hold with full glow (0.8s)
+    await new Promise(r => setTimeout(r, 800))
+
+    // Phase 4: Fade back (0.8s)
+    bgShapeControls.start({
+      opacity: 0.12,
+      scale: 1,
+      transition: { duration: 0.8, ease: 'easeInOut' }
+    })
+
+    // Animate glow intensity down
+    for (let i = glowSteps; i >= 0; i--) {
+      await new Promise(r => setTimeout(r, 40))
+      setGlowIntensity(i / glowSteps)
+    }
+
+    // Cleanup
+    setShapeAnimating(false)
+    setChangedDimensions([])
+    setDisplayDimensions(null)
+  }, [bgShapeControls])
 
   const loadExistingShape = async () => {
     if (!user) return
@@ -236,14 +304,20 @@ export default function Home() {
       })
       const data = await res.json()
 
-      // If Abre updated the shape, save it
+      // If Abre updated the shape, save it and trigger animation
       if (data.shapeUpdates && data.shapeUpdates.updates) {
+        const oldDimensions = { ...shape.dimensions }
         const newDimensions = { ...shape.dimensions, ...data.shapeUpdates.updates }
+        const changedKeys = Object.keys(data.shapeUpdates.updates)
+
         const saved = await saveUserShape(user.id, newDimensions)
         if (saved) {
           setShape({ ...shape, dimensions: newDimensions })
           setShapeUpdated(true)
           setTimeout(() => setShapeUpdated(false), 3000)
+
+          // Trigger the level-up animation
+          animateShapeUpdate(oldDimensions, newDimensions, changedKeys)
         }
       }
 
@@ -435,11 +509,20 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-8 max-w-2xl mx-auto relative">
-      {/* Giant faint shape in background */}
+      {/* Giant faint shape in background - animates on shape updates */}
       {shape && shape.dimensions && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0 opacity-[0.12]">
-          <ShapeRadar dimensions={shape.dimensions} size={800} />
-        </div>
+        <motion.div
+          className="fixed inset-0 flex items-center justify-center pointer-events-none z-0"
+          initial={{ opacity: 0.12, scale: 1 }}
+          animate={bgShapeControls}
+        >
+          <ShapeRadar
+            dimensions={displayDimensions || shape.dimensions}
+            size={800}
+            highlightedDimensions={changedDimensions}
+            glowIntensity={glowIntensity}
+          />
+        </motion.div>
       )}
 
       <div className="relative z-10">
