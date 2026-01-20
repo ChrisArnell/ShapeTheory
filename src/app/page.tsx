@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
+import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, deletePrediction, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
 import ShapeRadar from '@/components/ShapeRadar'
 import ActivePredictions from '@/components/ActivePredictions'
@@ -493,11 +493,13 @@ export default function Home() {
   const handleDeletePrediction = async (predictionId: string) => {
     const prediction = activePredictions.find(p => p.id === predictionId)
 
-    // If it's in the database, we could delete it there too
-    // For now, just remove from local state
-    setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
+    // If it's locked in the database, delete it there too
+    if (prediction?.dbId) {
+      await deletePrediction(prediction.dbId)
+    }
 
-    // TODO: Add supabase delete if dbId exists
+    // Remove from local state
+    setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
   }
 
   if (loading) {
