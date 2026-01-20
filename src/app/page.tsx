@@ -664,7 +664,6 @@ export default function Home() {
             <textarea
               value={favorites}
               onChange={(e) => setFavorites(e.target.value)}
-              placeholder="The Bear, Severance, Tyler Childers, Lingua Ignota, Nathan Fielder..."
               className="w-full h-32 p-3 border rounded-lg bg-white dark:bg-gray-900 dark:border-gray-700"
             />
           </div>
