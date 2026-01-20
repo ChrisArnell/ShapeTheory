@@ -784,24 +784,26 @@ export default function Home() {
                   {/* Calibration Summary */}
                   <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-sm">
                     {(() => {
-                      // Exclude fence from calibration calculation
-                      const decisive = completedPredictions.filter(p => p.outcome !== 'fence')
-                      const hits = decisive.filter(p => p.outcome === 'hit').length
-                      const avgProbability = decisive.length > 0
-                        ? Math.round(decisive.reduce((sum, p) => sum + p.hit_probability, 0) / decisive.length)
+                      // Count fence as 0.5 (it's still signal)
+                      const total = completedPredictions.length
+                      const hits = completedPredictions.filter(p => p.outcome === 'hit').length
+                      const fences = completedPredictions.filter(p => p.outcome === 'fence').length
+                      const effectiveHits = hits + (fences * 0.5)
+                      const avgProbability = total > 0
+                        ? Math.round(completedPredictions.reduce((sum, p) => sum + p.hit_probability, 0) / total)
                         : 0
-                      const actualHitRate = decisive.length > 0
-                        ? Math.round((hits / decisive.length) * 100)
+                      const actualHitRate = total > 0
+                        ? Math.round((effectiveHits / total) * 100)
                         : 0
 
-                      if (decisive.length === 0) {
-                        return <span className="text-gray-500">No decisive outcomes yet</span>
+                      if (total === 0) {
+                        return <span className="text-gray-500">No outcomes yet</span>
                       }
 
                       return (
                         <div className="space-y-1">
                           <div>
-                            <strong>{hits}/{decisive.length}</strong> hits ({actualHitRate}% hit rate)
+                            <strong>{effectiveHits}/{total}</strong> hits ({actualHitRate}% hit rate)
                           </div>
                           <div className="text-xs text-gray-500">
                             Avg prediction: {avgProbability}% · Actual: {actualHitRate}%
