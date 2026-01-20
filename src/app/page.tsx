@@ -101,6 +101,7 @@ export default function Home() {
   const [showAppInfo, setShowAppInfo] = useState(false)
   const [showAbreInfo, setShowAbreInfo] = useState(false)
   const [showWaysToUse, setShowWaysToUse] = useState(false)
+  const [readInfoButtons, setReadInfoButtons] = useState<Set<string>>(new Set())
   const [chatSessionRestored, setChatSessionRestored] = useState(false)
 
   // Shape animation state
@@ -123,6 +124,26 @@ export default function Home() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Load read info buttons from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('shapetheory_read_info')
+      if (stored) {
+        setReadInfoButtons(new Set(JSON.parse(stored)))
+      }
+    }
+  }, [])
+
+  // Helper to mark an info button as read
+  const markInfoRead = (key: string) => {
+    setReadInfoButtons(prev => {
+      const newSet = new Set(prev)
+      newSet.add(key)
+      localStorage.setItem('shapetheory_read_info', JSON.stringify([...newSet]))
+      return newSet
+    })
+  }
 
   // Load existing shape when user logs in
   useEffect(() => {
@@ -579,21 +600,33 @@ export default function Home() {
         <div className="flex items-center gap-4 mb-8">
           <p className="text-sm text-gray-500">{user.email}</p>
           <button
-            onClick={() => setShowAppInfo(true)}
-            className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            onClick={() => { setShowAppInfo(true); markInfoRead('appInfo') }}
+            className={`text-xs px-2 py-1 border rounded ${
+              readInfoButtons.has('appInfo')
+                ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                : 'border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+            }`}
           >
             What is this?
           </button>
           <button
-            onClick={() => setShowAbreInfo(true)}
-            className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+            onClick={() => { setShowAbreInfo(true); markInfoRead('abreInfo') }}
+            className={`text-xs px-2 py-1 border rounded ${
+              readInfoButtons.has('abreInfo')
+                ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                : 'border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+            }`}
           >
             Who is Abre?
           </button>
           {shape && (
             <button
-              onClick={() => setShowWaysToUse(true)}
-              className="text-xs px-2 py-1 border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30"
+              onClick={() => { setShowWaysToUse(true); markInfoRead('waysToUse') }}
+              className={`text-xs px-2 py-1 border rounded ${
+                readInfoButtons.has('waysToUse')
+                  ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+              }`}
             >
               Ways to use
             </button>
