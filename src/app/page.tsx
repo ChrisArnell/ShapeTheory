@@ -535,7 +535,13 @@ export default function Home() {
         </motion.div>
       )}
 
-      <div className="relative z-10">
+      <motion.div
+        className="relative z-10"
+        animate={{
+          opacity: animationPhase === 'idle' ? 1 : 0.15,
+        }}
+        transition={{ duration: 0.5 }}
+      >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-4">
           {shape && shape.dimensions && (
@@ -843,7 +849,7 @@ export default function Home() {
           </div>
         </div>
       )}
-      </div>
+      </motion.div>
     </main>
   )
 }
