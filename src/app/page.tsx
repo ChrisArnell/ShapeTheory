@@ -1,11 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
 import ShapeRadar from '@/components/ShapeRadar'
 import ActivePredictions from '@/components/ActivePredictions'
+
+// Chat session persistence
+const CHAT_STORAGE_KEY = 'shapetheory_chat_session'
+const SESSION_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
+
+interface ChatSession {
+  messages: { role: string; content: string }[]
+  lastActivity: number
+  userId: string
+}
 
 interface LocalPrediction {
   id: string
@@ -27,6 +37,49 @@ interface CompletedPrediction {
   completed_at: string
 }
 
+// Helper functions for chat session persistence
+function saveChatSession(messages: { role: string; content: string }[], userId: string) {
+  if (typeof window === 'undefined') return
+  const session: ChatSession = {
+    messages,
+    lastActivity: Date.now(),
+    userId
+  }
+  localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(session))
+}
+
+function loadChatSession(userId: string): { role: string; content: string }[] | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(CHAT_STORAGE_KEY)
+    if (!stored) return null
+
+    const session: ChatSession = JSON.parse(stored)
+
+    // Check if session is for this user
+    if (session.userId !== userId) {
+      localStorage.removeItem(CHAT_STORAGE_KEY)
+      return null
+    }
+
+    // Check if session has expired (1 hour)
+    if (Date.now() - session.lastActivity > SESSION_TIMEOUT_MS) {
+      localStorage.removeItem(CHAT_STORAGE_KEY)
+      return null
+    }
+
+    return session.messages
+  } catch {
+    localStorage.removeItem(CHAT_STORAGE_KEY)
+    return null
+  }
+}
+
+function clearChatSession() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(CHAT_STORAGE_KEY)
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -41,6 +94,7 @@ export default function Home() {
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [showAppInfo, setShowAppInfo] = useState(false)
   const [showAbreInfo, setShowAbreInfo] = useState(false)
+  const [chatSessionRestored, setChatSessionRestored] = useState(false)
 
   // Check auth state on mount
   useEffect(() => {
@@ -63,16 +117,32 @@ export default function Home() {
     }
   }, [user])
 
+  // Persist chat messages to localStorage whenever they change
+  useEffect(() => {
+    if (user && chatMessages.length > 0 && chatSessionRestored) {
+      saveChatSession(chatMessages, user.id)
+    }
+  }, [chatMessages, user, chatSessionRestored])
+
   const loadExistingShape = async () => {
     if (!user) return
 
     const existingShape = await loadUserShape(user.id)
     if (existingShape && Object.keys(existingShape).length > 0) {
       setShape({ dimensions: existingShape, summary: 'Welcome back!' })
-      setChatMessages([{
-        role: 'assistant',
-        content: "Hey! Abre here. Good to see you again. Looking for something to watch or listen to? Or want to work more on your shape? I can run a quick quiz on any dimension that feels off, or you can tell me more things you love or hate and we'll keep refining."
-      }])
+
+      // Try to restore chat from localStorage first
+      const storedMessages = loadChatSession(user.id)
+      if (storedMessages && storedMessages.length > 0) {
+        setChatMessages(storedMessages)
+      } else {
+        // Fresh session - use default welcome
+        setChatMessages([{
+          role: 'assistant',
+          content: "Hey! Abre here. Good to see you again. Looking for something to watch or listen to? Or want to work more on your shape? I can run a quick quiz on any dimension that feels off, or you can tell me more things you love or hate and we'll keep refining."
+        }])
+      }
+      setChatSessionRestored(true)
 
       // Load existing pending predictions
       const pending = await getPendingPredictions(user.id)
@@ -204,11 +274,21 @@ export default function Home() {
   }
 
   const handleSignOut = async () => {
+    clearChatSession()
     await supabase.auth.signOut()
     setShape(null)
     setChatMessages([])
     setFavorites('')
     setActivePredictions([])
+  }
+
+  // Start a new conversation (clear chat but keep shape)
+  const startNewConversation = () => {
+    clearChatSession()
+    setChatMessages([{
+      role: 'assistant',
+      content: "Fresh start! What can I help you with? Looking for recommendations, want to refine your shape, or just want to chat about what you've been watching lately?"
+    }])
   }
 
   // Lock in a suggested prediction - save to database
@@ -489,6 +569,13 @@ export default function Home() {
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >
                 Send
+              </button>
+              <button
+                onClick={startNewConversation}
+                className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-sm"
+                title="Start fresh conversation"
+              >
+                New
               </button>
             </div>
 
