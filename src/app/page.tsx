@@ -513,7 +513,9 @@ export default function Home() {
       {/* Giant faint shape in background - animates on shape updates */}
       {shape && shape.dimensions && (
         <motion.div
-          className="fixed inset-0 flex items-center justify-center pointer-events-none z-0"
+          className={`fixed inset-0 flex items-center justify-center pointer-events-none ${
+            animationPhase === 'idle' ? 'z-0' : 'z-50'
+          }`}
           initial={{ opacity: 0.12, scale: 1 }}
           animate={{
             opacity: animationPhase === 'idle' || animationPhase === 'falling' ? 0.12 : 0.7,
