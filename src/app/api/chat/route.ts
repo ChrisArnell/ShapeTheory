@@ -121,15 +121,15 @@ export async function POST(request: Request) {
 
       if (stats && stats.total > 0) {
         userHistoryContext += `\n\nUSER'S PREDICTION TRACK RECORD:
-- ${stats.total} predictions made, ${stats.hits} hits (within 2 points), ${Math.round((stats.accuracy || 0) * 100)}% accuracy
-- ${pending?.length || 0} pending (watching now), ${completed?.length || 0} completed`
+- ${stats.total} predictions completed, ${stats.hits} hits, ${Math.round((stats.accuracy || 0) * 100)}% hit rate
+- ${pending?.length || 0} pending (watching now)`
       }
 
       if (completed && completed.length > 0) {
         const recentHistory = completed.slice(0, 8).map((p: any) => {
-          const diff = p.actual_enjoyment - p.predicted_enjoyment
-          const diffStr = diff === 0 ? 'spot on' : diff > 0 ? `+${diff} better than expected` : `${diff} worse than expected`
-          return `- ${p.content?.title}: predicted ${p.predicted_enjoyment}, actual ${p.actual_enjoyment} (${diffStr})`
+          // actual_enjoyment: 10=hit, 5=fence, 0=miss
+          const outcomeStr = p.actual_enjoyment >= 10 ? 'HIT' : p.actual_enjoyment >= 5 ? 'FENCE' : 'MISS'
+          return `- ${p.content?.title}: predicted ${p.predicted_enjoyment}% → ${outcomeStr}`
         }).join('\n')
         userHistoryContext += `\n\nRECENT HISTORY (reference this!):\n${recentHistory}`
       }
