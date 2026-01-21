@@ -346,11 +346,14 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       moodUpdate,
       newPredictions: newPredictions.length > 0 ? newPredictions : null
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Chat API error:', error)
+    // Return actual error message for debugging
+    const errorMessage = error?.message || error?.toString() || 'Unknown error'
+    const statusCode = error?.status || 500
     return NextResponse.json(
-      { error: 'Failed to get response' },
-      { status: 500 }
+      { error: errorMessage, details: error?.error?.message || null },
+      { status: statusCode }
     )
   }
 }
