@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { saveUserShape, loadUserShape, getWeightedPredictions, getUserHistoryForChat, saveUserProfile, savePrediction, recordOutcome, deletePrediction, getPendingPredictions, getCompletedPredictions } from '@/lib/db'
 import Auth from '@/components/Auth'
@@ -631,6 +632,12 @@ export default function Home() {
               Ways to use
             </button>
           )}
+          <Link
+            href="/essays"
+            className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            Essays
+          </Link>
         </div>
       )}
 
