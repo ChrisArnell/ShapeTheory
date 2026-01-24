@@ -9,6 +9,33 @@ interface Essay {
   link: string
 }
 
+// Master list of all essay URLs (add new ones here when you publish)
+const ALL_ESSAY_URLS = [
+  'https://shapetheoryesvn.substack.com/p/why-most-fields-dont-learn',
+  'https://shapetheoryesvn.substack.com/p/do-your-own-research',
+  'https://shapetheoryesvn.substack.com/p/shape-theory-summary',
+  'https://shapetheoryesvn.substack.com/p/the-cure-is-a-verb',
+  'https://shapetheoryesvn.substack.com/p/the-rosetta-stone-for-behavioral',
+  'https://shapetheoryesvn.substack.com/p/i-wish-i-was-crazy-but-unfortunately',
+  'https://shapetheoryesvn.substack.com/p/there-are-no-bad-decisions',
+  'https://shapetheoryesvn.substack.com/p/the-cost-of-shapefit',
+  'https://shapetheoryesvn.substack.com/p/first-do-harm',
+  'https://shapetheoryesvn.substack.com/p/the-balance',
+  'https://shapetheoryesvn.substack.com/p/the-universal-balance-initiative',
+  'https://shapetheoryesvn.substack.com/p/the-engine-has-a-name',
+  'https://shapetheoryesvn.substack.com/p/the-religion-of-the-balance',
+  'https://shapetheoryesvn.substack.com/p/the-shape-of-entertainment',
+  'https://shapetheoryesvn.substack.com/p/the-human-in-the-loop-singularity',
+  'https://shapetheoryesvn.substack.com/p/trust-me-bro',
+  'https://shapetheoryesvn.substack.com/p/the-empty-chair',
+  'https://shapetheoryesvn.substack.com/p/the-hidden-question-behind-every',
+  'https://shapetheoryesvn.substack.com/p/definitional-capture-summary',
+  'https://shapetheoryesvn.substack.com/p/the-shape-that-isnt-one',
+  'https://shapetheoryesvn.substack.com/p/the-law-of-adaptive-system-progress',
+  'https://shapetheoryesvn.substack.com/p/cookies-for-things-that-matter',
+  'https://shapetheoryesvn.substack.com/p/cookies-for-cancer',
+]
+
 function extractTag(xml: string, tag: string): string {
   const regex = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`)
   const match = xml.match(regex)
@@ -33,9 +60,9 @@ async function fetchPostData(url: string): Promise<Essay | null> {
     if (!res.ok) return null
     const html = await res.text()
 
-    // Extract title from meta or h1
+    // Extract title from meta
     const titleMatch = html.match(/<meta property="og:title" content="([^"]*)"/) ||
-                        html.match(/<h1[^>]*class="[^"]*post-title[^"]*"[^>]*>([\s\S]*?)<\/h1>/)
+                        html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)
     const title = titleMatch ? stripHtml(titleMatch[1] || titleMatch[2] || '') : ''
 
     // Extract subtitle/description
@@ -52,14 +79,14 @@ async function fetchPostData(url: string): Promise<Essay | null> {
       day: 'numeric'
     }) : ''
 
-    // Extract content
+    // Extract content - try multiple patterns for Substack's HTML
     const bodyMatch = html.match(/<div class="body markup"[^>]*>([\s\S]*?)<\/div>\s*(<div class="footer"|<div class="post-footer"|<\/article>|<div class="subscribe)/)
     const altMatch = html.match(/<div[^>]*class="[^"]*available-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/)
     const content = bodyMatch?.[1] || altMatch?.[1] || ''
 
     if (!title) return null
 
-    const urlSlug = url.split('/p/')[1] || ''
+    const urlSlug = url.split('/p/')[1]?.replace(/\/+$/, '') || ''
 
     return {
       title,
@@ -76,12 +103,12 @@ async function fetchPostData(url: string): Promise<Essay | null> {
 
 export async function GET() {
   try {
-    // Step 1: Fetch RSS feed (gives us latest 20 with full content)
+    // Step 1: Fetch RSS feed (gives us latest 20 with full content, cached 1hr)
     const rssRes = await fetch('https://shapetheoryesvn.substack.com/feed', {
       next: { revalidate: 3600 }
     })
 
-    const rssEssays: Essay[] = []
+    const rssEssaysByLink = new Map<string, Essay>()
 
     if (rssRes.ok) {
       const xml = await rssRes.text()
@@ -89,13 +116,13 @@ export async function GET() {
 
       for (const item of items) {
         const title = stripHtml(extractTag(item, 'title'))
-        const link = extractTag(item, 'link')
+        const link = extractTag(item, 'link').replace(/\/+$/, '')
         const pubDate = extractTag(item, 'pubDate')
         const description = stripHtml(extractTag(item, 'description'))
         const contentMatch = item.match(/<content:encoded><!\[CDATA\[([\s\S]*?)\]\]><\/content:encoded>/)
         const content = contentMatch?.[1] || ''
 
-        rssEssays.push({
+        const essay: Essay = {
           title,
           subtitle: description,
           date: pubDate ? new Date(pubDate).toLocaleDateString('en-US', {
@@ -106,59 +133,47 @@ export async function GET() {
           slug: slugify(title),
           content,
           link
-        })
+        }
+        rssEssaysByLink.set(link, essay)
       }
     }
 
-    // Step 2: Fetch archive page to discover ALL post URLs
-    const archiveRes = await fetch('https://shapetheoryesvn.substack.com/archive?sort=new', {
-      next: { revalidate: 3600 }
+    // Step 2: For each URL in our master list, use RSS data if available,
+    // otherwise fetch the post individually (cached 24hr)
+    const missingUrls = ALL_ESSAY_URLS.filter(url => !rssEssaysByLink.has(url.replace(/\/+$/, '')))
+
+    const fetchedEssays = await Promise.all(
+      missingUrls.map(url => fetchPostData(url))
+    )
+
+    // Step 3: Build final list - RSS essays + individually fetched ones
+    // Also include any RSS essays not in our hardcoded list (new posts)
+    const allEssays: Essay[] = []
+    const usedLinks = new Set<string>()
+
+    // First add all from RSS (these have the best content)
+    Array.from(rssEssaysByLink.values()).forEach(essay => {
+      allEssays.push(essay)
+      usedLinks.add(essay.link)
     })
 
-    const additionalEssays: Essay[] = []
-    // Normalize URLs for comparison (strip trailing slashes, query params)
-    const normalizeUrl = (url: string) => url.replace(/\/+$/, '').split('?')[0].split('#')[0]
-    const rssLinks = new Set(rssEssays.map(e => normalizeUrl(e.link)))
-    const rssSlugs = new Set(rssEssays.map(e => e.slug))
-
-    if (archiveRes.ok) {
-      const archiveHtml = await archiveRes.text()
-
-      // Find all post links in the archive (exclude /comments URLs)
-      const postLinkRegex = /href="(https:\/\/shapetheoryesvn\.substack\.com\/p\/[^"?#]+)"/g
-      const foundUrls = new Set<string>()
-      let match
-      while ((match = postLinkRegex.exec(archiveHtml)) !== null) {
-        const url = match[1]
-        // Skip comment pages and other non-post URLs
-        if (url.includes('/comments') || url.endsWith('/comments')) continue
-        foundUrls.add(url)
+    // Then add individually fetched ones
+    for (const essay of fetchedEssays) {
+      if (essay && !usedLinks.has(essay.link)) {
+        allEssays.push(essay)
+        usedLinks.add(essay.link)
       }
-
-      // For posts not in RSS, fetch individually (in parallel)
-      const missingUrls = Array.from(foundUrls).filter(url => {
-        const normalized = normalizeUrl(url)
-        const slug = url.split('/p/')[1]?.replace(/\/+$/, '') || ''
-        return !rssLinks.has(normalized) && !rssSlugs.has(slug)
-      })
-      const fetched = await Promise.all(
-        missingUrls.map(postUrl => fetchPostData(postUrl))
-      )
-      additionalEssays.push(...fetched.filter((e): e is Essay => e !== null))
     }
 
-    // Combine: RSS essays (newest first) + additional older essays
-    const allEssays = [...rssEssays, ...additionalEssays]
-
-    // Deduplicate by slug
-    const seen = new Set<string>()
-    const deduped = allEssays.filter(e => {
-      if (seen.has(e.slug)) return false
-      seen.add(e.slug)
-      return true
+    // Sort by date (newest first)
+    allEssays.sort((a, b) => {
+      if (!a.date && !b.date) return 0
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return new Date(b.date).getTime() - new Date(a.date).getTime()
     })
 
-    return NextResponse.json({ essays: deduped })
+    return NextResponse.json({ essays: allEssays })
   } catch (error: any) {
     console.error('Failed to fetch essays:', error)
     return NextResponse.json(
