@@ -28,6 +28,12 @@ const ALL_ESSAY_URLS = [
   'https://shapetheoryesvn.substack.com/p/the-human-in-the-loop-singularity',
   'https://shapetheoryesvn.substack.com/p/trust-me-bro',
   'https://shapetheoryesvn.substack.com/p/the-empty-chair',
+  'https://shapetheoryesvn.substack.com/p/the-hidden-question-behind-every',
+  'https://shapetheoryesvn.substack.com/p/definitional-capture-summary',
+  'https://shapetheoryesvn.substack.com/p/the-shape-that-isnt-one',
+  'https://shapetheoryesvn.substack.com/p/the-law-of-adaptive-system-progress',
+  'https://shapetheoryesvn.substack.com/p/cookies-for-things-that-matter',
+  'https://shapetheoryesvn.substack.com/p/cookies-for-cancer',
 ]
 
 function extractTag(xml: string, tag: string): string {
