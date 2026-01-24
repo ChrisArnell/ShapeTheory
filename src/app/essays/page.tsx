@@ -25,8 +25,7 @@ export default function EssaysPage() {
         if (data.error) {
           setError(data.error)
         } else {
-          // Reverse so oldest is first (reading order)
-          setEssays(data.essays.reverse())
+          setEssays(data.essays)
         }
       } catch (err: any) {
         setError(err.message || 'Failed to load essays')
