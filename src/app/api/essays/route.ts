@@ -152,10 +152,10 @@ export async function GET() {
     const usedLinks = new Set<string>()
 
     // First add all from RSS (these have the best content)
-    for (const essay of rssEssaysByLink.values()) {
+    Array.from(rssEssaysByLink.values()).forEach(essay => {
       allEssays.push(essay)
       usedLinks.add(essay.link)
-    }
+    })
 
     // Then add individually fetched ones
     for (const essay of fetchedEssays) {
