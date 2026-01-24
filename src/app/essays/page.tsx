@@ -1,66 +1,17 @@
-'use client'
-
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { getEssays } from '@/lib/essays'
 
-interface Essay {
-  title: string
-  subtitle: string
-  date: string
-  slug: string
-  content: string
-  link: string
-}
+export const revalidate = 3600 // Revalidate every hour
 
-export default function EssaysPage() {
-  const [essays, setEssays] = useState<Essay[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function fetchEssays() {
-      try {
-        const res = await fetch('/api/essays')
-        const data = await res.json()
-        if (data.error) {
-          setError(data.error)
-        } else {
-          setEssays(data.essays)
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to load essays')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchEssays()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <p className="text-gray-500">Loading essays...</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <p className="text-red-500">Error: {error}</p>
-        <Link href="/" className="text-blue-600 hover:underline mt-4 inline-block">
-          ← Back to Shape Theory
-        </Link>
-      </div>
-    )
-  }
+export default async function EssaysPage() {
+  const essays = await getEssays()
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-12">
       {/* Header */}
       <div className="mb-12">
         <Link href="/" className="text-sm text-blue-600 hover:underline mb-4 inline-block">
-          ← Back to Shape Theory
+          &larr; Back to Shape Theory
         </Link>
         <h1 className="text-4xl font-bold mb-2">Shape Theory Essays</h1>
         <p className="text-gray-600 dark:text-gray-400">
@@ -125,7 +76,7 @@ export default function EssaysPage() {
             {/* Back to top */}
             <div className="mt-8 pt-4">
               <a href="#" className="text-sm text-gray-400 hover:text-gray-600">
-                ↑ Back to top
+                &uarr; Back to top
               </a>
             </div>
           </article>
@@ -140,7 +91,7 @@ export default function EssaysPage() {
           rel="noopener noreferrer"
           className="hover:text-gray-600"
         >
-          Subscribe on Substack →
+          Subscribe on Substack &rarr;
         </a>
       </footer>
     </div>
