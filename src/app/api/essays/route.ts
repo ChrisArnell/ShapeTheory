@@ -42,8 +42,25 @@ function extractTag(xml: string, tag: string): string {
   return (match?.[1] || match?.[2] || '').trim()
 }
 
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&rsquo;/g, '\u2019')
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&ndash;/g, '\u2013')
+}
+
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, '').trim()
+  return decodeEntities(html.replace(/<[^>]+>/g, '').trim())
 }
 
 function slugify(title: string): string {
@@ -69,8 +86,8 @@ async function fetchPostData(url: string): Promise<Essay | null> {
     if (jsonLdMatch) {
       try {
         const jsonLd = JSON.parse(jsonLdMatch[1])
-        title = jsonLd.headline || ''
-        subtitle = jsonLd.description || ''
+        title = decodeEntities(jsonLd.headline || '')
+        subtitle = decodeEntities(jsonLd.description || '')
         if (jsonLd.datePublished) {
           date = new Date(jsonLd.datePublished).toLocaleDateString('en-US', {
             year: 'numeric',
@@ -92,7 +109,7 @@ async function fetchPostData(url: string): Promise<Essay | null> {
     if (!subtitle) {
       const descMatch = html.match(/<meta property="og:description" content="([^"]*)"/) ||
                         html.match(/<meta name="description" content="([^"]*)"/)
-      subtitle = descMatch ? descMatch[1] : ''
+      subtitle = descMatch ? decodeEntities(descMatch[1]) : ''
     }
 
     // Fallback: Extract date from time tag or meta
