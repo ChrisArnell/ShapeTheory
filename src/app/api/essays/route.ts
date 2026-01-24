@@ -60,27 +60,56 @@ async function fetchPostData(url: string): Promise<Essay | null> {
     if (!res.ok) return null
     const html = await res.text()
 
-    // Extract title from meta
-    const titleMatch = html.match(/<meta property="og:title" content="([^"]*)"/) ||
-                        html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)
-    const title = titleMatch ? stripHtml(titleMatch[1] || titleMatch[2] || '') : ''
+    let title = ''
+    let subtitle = ''
+    let date = ''
 
-    // Extract subtitle/description
-    const descMatch = html.match(/<meta property="og:description" content="([^"]*)"/) ||
-                      html.match(/<meta name="description" content="([^"]*)"/)
-    const subtitle = descMatch ? descMatch[1] : ''
+    // Try JSON-LD first (most reliable source)
+    const jsonLdMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    if (jsonLdMatch) {
+      try {
+        const jsonLd = JSON.parse(jsonLdMatch[1])
+        title = jsonLd.headline || ''
+        subtitle = jsonLd.description || ''
+        if (jsonLd.datePublished) {
+          date = new Date(jsonLd.datePublished).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        }
+      } catch { /* JSON parse failed, fall through */ }
+    }
 
-    // Extract publish date
-    const dateMatch = html.match(/<time[^>]*datetime="([^"]*)"/) ||
-                      html.match(/<meta property="article:published_time" content="([^"]*)"/)
-    const date = dateMatch ? new Date(dateMatch[1]).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }) : ''
+    // Fallback: Extract title from og:title or post-title h1
+    if (!title) {
+      const titleMatch = html.match(/<meta property="og:title" content="([^"]*)"/) ||
+                          html.match(/<h1[^>]*class="[^"]*post-title[^"]*"[^>]*>([\s\S]*?)<\/h1>/)
+      title = titleMatch ? stripHtml(titleMatch[1] || titleMatch[2] || '') : ''
+    }
+
+    // Fallback: Extract subtitle from meta
+    if (!subtitle) {
+      const descMatch = html.match(/<meta property="og:description" content="([^"]*)"/) ||
+                        html.match(/<meta name="description" content="([^"]*)"/)
+      subtitle = descMatch ? descMatch[1] : ''
+    }
+
+    // Fallback: Extract date from time tag or meta
+    if (!date) {
+      const dateMatch = html.match(/<time[^>]*datetime="([^"]*)"/) ||
+                        html.match(/<meta property="article:published_time" content="([^"]*)"/)
+      if (dateMatch) {
+        date = new Date(dateMatch[1]).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+      }
+    }
 
     // Extract content - try multiple patterns for Substack's HTML
-    const bodyMatch = html.match(/<div class="body markup"[^>]*>([\s\S]*?)<\/div>\s*(<div class="footer"|<div class="post-footer"|<\/article>|<div class="subscribe)/)
+    const bodyMatch = html.match(/<div[^>]*class="[^"]*body markup[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(<div class="footer"|<div class="post-footer"|<\/article>|<div class="subscribe)/)
     const altMatch = html.match(/<div[^>]*class="[^"]*available-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/)
     const content = bodyMatch?.[1] || altMatch?.[1] || ''
 
@@ -165,12 +194,12 @@ export async function GET() {
       }
     }
 
-    // Sort by date (newest first)
+    // Sort by date (oldest first - chronological order)
     allEssays.sort((a, b) => {
       if (!a.date && !b.date) return 0
       if (!a.date) return 1
       if (!b.date) return -1
-      return new Date(b.date).getTime() - new Date(a.date).getTime()
+      return new Date(a.date).getTime() - new Date(b.date).getTime()
     })
 
     return NextResponse.json({ essays: allEssays })
