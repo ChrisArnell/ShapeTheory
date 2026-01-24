@@ -2,6 +2,7 @@ export interface Essay {
   title: string
   subtitle: string
   date: string
+  sortDate: string
   slug: string
   content: string
   link: string
@@ -76,7 +77,7 @@ async function fetchPostData(url: string): Promise<Essay | null> {
 
     let title = ''
     let subtitle = ''
-    let date = ''
+    let sortDate = ''
 
     const jsonLdMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
     if (jsonLdMatch) {
@@ -85,11 +86,7 @@ async function fetchPostData(url: string): Promise<Essay | null> {
         title = decodeEntities(jsonLd.headline || '')
         subtitle = decodeEntities(jsonLd.description || '')
         if (jsonLd.datePublished) {
-          date = new Date(jsonLd.datePublished).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })
+          sortDate = new Date(jsonLd.datePublished).toISOString()
         }
       } catch { /* JSON parse failed, fall through */ }
     }
@@ -106,15 +103,11 @@ async function fetchPostData(url: string): Promise<Essay | null> {
       subtitle = descMatch ? decodeEntities(descMatch[1]) : ''
     }
 
-    if (!date) {
+    if (!sortDate) {
       const dateMatch = html.match(/<time[^>]*datetime="([^"]*)"/) ||
                         html.match(/<meta property="article:published_time" content="([^"]*)"/)
       if (dateMatch) {
-        date = new Date(dateMatch[1]).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        })
+        sortDate = new Date(dateMatch[1]).toISOString()
       }
     }
 
@@ -129,7 +122,12 @@ async function fetchPostData(url: string): Promise<Essay | null> {
     return {
       title,
       subtitle,
-      date,
+      date: sortDate ? new Date(sortDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }) : '',
+      sortDate,
       slug: urlSlug || slugify(title),
       content,
       link: url
@@ -163,14 +161,16 @@ export async function getEssays(): Promise<Essay[]> {
       const contentMatch = item.match(/<content:encoded><!\[CDATA\[([\s\S]*?)\]\]><\/content:encoded>/)
       const content = contentMatch?.[1] || ''
 
+      const sortDate = pubDate ? new Date(pubDate).toISOString() : ''
       const essay: Essay = {
         title,
         subtitle: description,
-        date: pubDate ? new Date(pubDate).toLocaleDateString('en-US', {
+        date: sortDate ? new Date(sortDate).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric'
         }) : '',
+        sortDate,
         slug: slugify(title),
         content,
         link
@@ -201,10 +201,10 @@ export async function getEssays(): Promise<Essay[]> {
   }
 
   allEssays.sort((a, b) => {
-    if (!a.date && !b.date) return 0
-    if (!a.date) return 1
-    if (!b.date) return -1
-    return new Date(a.date).getTime() - new Date(b.date).getTime()
+    if (!a.sortDate && !b.sortDate) return 0
+    if (!a.sortDate) return 1
+    if (!b.sortDate) return -1
+    return a.sortDate.localeCompare(b.sortDate)
   })
 
   return allEssays
