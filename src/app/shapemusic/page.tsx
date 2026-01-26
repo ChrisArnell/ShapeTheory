@@ -237,8 +237,14 @@ export default function ShapeMusicHome() {
           if (session?.user) {
             setAuthUser(session.user)
             // Get or create music-specific user
-            const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
-            setAppUserId(musicUserId)
+            console.log('Auth session found, getting app user for:', session.user.id)
+            try {
+              const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
+              console.log('Got musicUserId:', musicUserId)
+              setAppUserId(musicUserId)
+            } catch (err) {
+              console.error('Failed to get/create app user:', err)
+            }
           }
           setLoading(false)
         })
@@ -406,7 +412,14 @@ export default function ShapeMusicHome() {
   }
 
   const captureShape = async () => {
-    if (!favorites.trim() || !appUserId) return
+    if (!favorites.trim()) {
+      console.error('Cannot capture shape: no favorites entered')
+      return
+    }
+    if (!appUserId) {
+      console.error('Cannot capture shape: appUserId is null - user may not be fully authenticated')
+      return
+    }
     setShapeLoading(true)
 
     try {
@@ -875,10 +888,10 @@ export default function ShapeMusicHome() {
             </div>
             <button
               onClick={captureShape}
-              disabled={shapeLoading || !favorites.trim()}
+              disabled={shapeLoading || !favorites.trim() || !appUserId}
               className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {shapeLoading ? 'Analyzing...' : 'Capture My Music Shape'}
+              {shapeLoading ? 'Analyzing...' : !appUserId ? 'Setting up...' : 'Capture My Music Shape'}
             </button>
           </div>
         ) : (
