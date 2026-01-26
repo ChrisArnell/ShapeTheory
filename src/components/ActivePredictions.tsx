@@ -5,6 +5,7 @@ import { useState } from 'react'
 interface Prediction {
   id: string
   title: string
+  artist?: string
   content_type: string
   hit_probability: number
   status: 'suggested' | 'locked' | 'completed'
@@ -95,6 +96,14 @@ export default function ActivePredictions({
     }
   }
 
+  // Display title with artist if artist is provided and not already in title
+  const displayTitle = (pred: Prediction) => {
+    if (pred.artist && !pred.title.toLowerCase().includes(pred.artist.toLowerCase())) {
+      return `${pred.title} - ${pred.artist}`
+    }
+    return pred.title
+  }
+
   return (
     <div className="border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
       {/* Suggested by Abre - needs lock-in */}
@@ -108,7 +117,7 @@ export default function ActivePredictions({
                 className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2"
               >
                 <span>{contentTypeIcon(pred.content_type)}</span>
-                <span className="font-medium text-sm">{pred.title}</span>
+                <span className="font-medium text-sm">{displayTitle(pred)}</span>
                 <span className="text-xs text-blue-600 dark:text-blue-400">
                   {pred.hit_probability}%
                 </span>
@@ -141,7 +150,7 @@ export default function ActivePredictions({
                 className="flex items-center gap-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2"
               >
                 <span>{contentTypeIcon(pred.content_type)}</span>
-                <span className="font-medium text-sm">{pred.title}</span>
+                <span className="font-medium text-sm">{displayTitle(pred)}</span>
                 <span className="text-xs text-green-600 dark:text-green-400">
                   {pred.hit_probability}%
                 </span>

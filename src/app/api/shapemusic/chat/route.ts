@@ -77,7 +77,11 @@ const tools: Anthropic.Messages.Tool[] = [
       properties: {
         title: {
           type: "string",
-          description: "The title of the music (album, song, artist, etc.)"
+          description: "The title of the music (album name, song name, etc.) WITHOUT the artist - just the title itself"
+        },
+        artist: {
+          type: "string",
+          description: "The artist/band name. REQUIRED for albums and songs to ensure correct lookup."
         },
         content_type: {
           type: "string",
@@ -268,6 +272,7 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
     let moodUpdate: string | null = null
     let newPredictions: {
       title: string
+      artist?: string
       content_type: string
       hit_probability: number
       ai_probability?: number
@@ -288,6 +293,7 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
         } else if (block.name === 'create_prediction') {
           newPredictions.push(block.input as {
             title: string
+            artist?: string
             content_type: string
             hit_probability: number
             ai_probability?: number

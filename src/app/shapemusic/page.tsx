@@ -36,6 +36,7 @@ interface ChatSession {
 interface LocalPrediction {
   id: string
   title: string
+  artist?: string
   content_type: string
   hit_probability: number
   ai_probability?: number
@@ -547,6 +548,7 @@ export default function ShapeMusicHome() {
         const newPreds: LocalPrediction[] = data.newPredictions.map((pred: any, idx: number) => ({
           id: `suggested-${Date.now()}-${idx}`,
           title: pred.title,
+          artist: pred.artist,
           content_type: pred.content_type,
           hit_probability: pred.hit_probability,
           ai_probability: pred.ai_probability,
@@ -590,21 +592,41 @@ export default function ShapeMusicHome() {
     let externalId: string | undefined
     let externalSource: string | undefined
     let year: number | undefined
-    let canonicalTitle = prediction.title
+    // Format title with artist for display (e.g., "Stranger in the Alps - Phoebe Bridgers")
+    let canonicalTitle = prediction.artist
+      ? `${prediction.title} - ${prediction.artist}`
+      : prediction.title
 
     try {
+      // Build search query including artist for more accurate matching
+      const searchQuery = prediction.artist
+        ? `${prediction.title} ${prediction.artist}`
+        : prediction.title
+
       const lookupRes = await fetch('/api/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: prediction.title,
-          content_type: prediction.content_type
+          query: searchQuery,
+          content_type: prediction.content_type,
+          artist: prediction.artist // Pass artist for validation
         })
       })
       const lookupData = await lookupRes.json()
 
       if (lookupData.results && lookupData.results.length > 0) {
-        const match = lookupData.results[0]
+        // If artist was specified, try to find a result that matches the artist
+        let match = lookupData.results[0]
+        if (prediction.artist) {
+          const artistLower = prediction.artist.toLowerCase()
+          const artistMatch = lookupData.results.find((r: any) =>
+            r.metadata?.artist?.toLowerCase().includes(artistLower) ||
+            r.title?.toLowerCase().includes(artistLower)
+          )
+          if (artistMatch) {
+            match = artistMatch
+          }
+        }
         externalId = match.external_id
         externalSource = match.external_source
         year = match.year
@@ -632,7 +654,7 @@ export default function ShapeMusicHome() {
       setActivePredictions(prev =>
         prev.map(p =>
           p.id === prediction.id
-            ? { ...p, title: canonicalTitle, status: 'locked' as const, dbId, external_id: externalId, external_source: externalSource, year }
+            ? { ...p, title: canonicalTitle, artist: prediction.artist, status: 'locked' as const, dbId, external_id: externalId, external_source: externalSource, year }
             : p
         )
       )
