@@ -180,6 +180,7 @@ export default function Home() {
   // Load existing shape when user logs in
   useEffect(() => {
     if (user) {
+      setShapeLoading(true)
       loadExistingShape()
     }
   }, [user])
@@ -253,57 +254,64 @@ export default function Home() {
   }, [])
 
   const loadExistingShape = async () => {
-    if (!user) return
+    if (!user) {
+      setShapeLoading(false)
+      return
+    }
 
-    const existingShape = await loadUserShape(user.id)
-    if (existingShape && Object.keys(existingShape).length > 0) {
-      setShape({ dimensions: existingShape, summary: 'Welcome back!' })
+    try {
+      const existingShape = await loadUserShape(user.id)
+      if (existingShape && Object.keys(existingShape).length > 0) {
+        setShape({ dimensions: existingShape, summary: 'Welcome back!' })
 
-      // Try to restore chat from localStorage first
-      const storedMessages = loadChatSession(user.id)
-      if (storedMessages && storedMessages.length > 0) {
-        setChatMessages(storedMessages)
-      } else {
-        // Fresh session - use default welcome
-        setChatMessages([{
-          role: 'assistant',
-          content: "Hey! Abre here. Good to see you again. Looking for something to watch or listen to? Or want to work more on your shape? I can run a quick quiz on any dimension that feels off, or you can tell me more things you love or hate and we'll keep refining."
-        }])
-      }
-      setChatSessionRestored(true)
+        // Try to restore chat from localStorage first
+        const storedMessages = loadChatSession(user.id)
+        if (storedMessages && storedMessages.length > 0) {
+          setChatMessages(storedMessages)
+        } else {
+          // Fresh session - use default welcome
+          setChatMessages([{
+            role: 'assistant',
+            content: "Hey! Abre here. Good to see you again. Looking for something to watch or listen to? Or want to work more on your shape? I can run a quick quiz on any dimension that feels off, or you can tell me more things you love or hate and we'll keep refining."
+          }])
+        }
+        setChatSessionRestored(true)
 
-      // Load existing pending predictions
-      const pending = await getPendingPredictions(user.id)
-      if (pending && pending.length > 0) {
-        setActivePredictions(pending.map((p: any) => ({
-          id: p.id,
-          dbId: p.id,
-          title: p.content?.title || 'Unknown',
-          content_type: p.content?.content_type || 'other',
-          hit_probability: p.predicted_enjoyment, // stored as probability 0-100
-          status: 'locked' as const,
-          predicted_at: p.predicted_at
-        })))
-      }
-
-      // Load completed predictions for history
-      const completed = await getCompletedPredictions(user.id)
-      if (completed && completed.length > 0) {
-        setCompletedPredictions(completed.map((p: any) => {
-          // Map actual_enjoyment to outcome: 10=hit, 0=miss, 5=fence
-          let outcome: 'hit' | 'miss' | 'fence' = 'fence'
-          if (p.actual_enjoyment >= 8) outcome = 'hit'
-          else if (p.actual_enjoyment <= 2) outcome = 'miss'
-          return {
+        // Load existing pending predictions
+        const pending = await getPendingPredictions(user.id)
+        if (pending && pending.length > 0) {
+          setActivePredictions(pending.map((p: any) => ({
             id: p.id,
+            dbId: p.id,
             title: p.content?.title || 'Unknown',
             content_type: p.content?.content_type || 'other',
-            hit_probability: p.predicted_enjoyment,
-            outcome,
-            completed_at: p.completed_at
-          }
-        }))
+            hit_probability: p.predicted_enjoyment, // stored as probability 0-100
+            status: 'locked' as const,
+            predicted_at: p.predicted_at
+          })))
+        }
+
+        // Load completed predictions for history
+        const completed = await getCompletedPredictions(user.id)
+        if (completed && completed.length > 0) {
+          setCompletedPredictions(completed.map((p: any) => {
+            // Map actual_enjoyment to outcome: 10=hit, 0=miss, 5=fence
+            let outcome: 'hit' | 'miss' | 'fence' = 'fence'
+            if (p.actual_enjoyment >= 8) outcome = 'hit'
+            else if (p.actual_enjoyment <= 2) outcome = 'miss'
+            return {
+              id: p.id,
+              title: p.content?.title || 'Unknown',
+              content_type: p.content?.content_type || 'other',
+              hit_probability: p.predicted_enjoyment,
+              outcome,
+              completed_at: p.completed_at
+            }
+          }))
+        }
       }
+    } finally {
+      setShapeLoading(false)
     }
   }
 
@@ -780,6 +788,12 @@ export default function Home() {
 
       {!user ? (
         <Auth onAuth={() => {}} />
+      ) : shapeLoading ? (
+        <div className="space-y-4">
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+            <p className="text-gray-700 dark:text-gray-300">Loading your shape...</p>
+          </div>
+        </div>
       ) : !shape ? (
         <div className="space-y-4">
           {/* Abre intro for new users */}
