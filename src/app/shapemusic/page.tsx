@@ -240,18 +240,23 @@ export default function ShapeMusicHome() {
             // Get or create music-specific user
             console.log('Auth session found, getting app user for:', session.user.id)
             try {
-              const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
+              // Add timeout to prevent hanging
+              const musicUserIdPromise = getOrCreateAppUser(session.user.id, APP_TYPE)
+              const timeoutPromise = new Promise<null>((_, reject) =>
+                setTimeout(() => reject(new Error('Setup timed out')), 10000)
+              )
+              const musicUserId = await Promise.race([musicUserIdPromise, timeoutPromise])
               console.log('Got musicUserId:', musicUserId)
               if (musicUserId) {
                 setAppUserId(musicUserId)
                 setSetupError(null)
               } else {
                 console.error('getOrCreateAppUser returned null')
-                setSetupError('Failed to set up your account. Please try again.')
+                setSetupError('Failed to connect to database. Please try again.')
               }
             } catch (err) {
               console.error('Failed to get/create app user:', err)
-              setSetupError('Failed to set up your account. Please try again.')
+              setSetupError('Failed to connect to database. Please try again.')
             }
           }
           setLoading(false)
@@ -267,16 +272,20 @@ export default function ShapeMusicHome() {
         if (session?.user) {
           setAuthUser(session.user)
           try {
-            const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
+            const musicUserIdPromise = getOrCreateAppUser(session.user.id, APP_TYPE)
+            const timeoutPromise = new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('Setup timed out')), 10000)
+            )
+            const musicUserId = await Promise.race([musicUserIdPromise, timeoutPromise])
             if (musicUserId) {
               setAppUserId(musicUserId)
               setSetupError(null)
             } else {
-              setSetupError('Failed to set up your account. Please try again.')
+              setSetupError('Failed to connect to database. Please try again.')
             }
           } catch (err) {
             console.error('Failed to get/create app user on auth change:', err)
-            setSetupError('Failed to set up your account. Please try again.')
+            setSetupError('Failed to connect to database. Please try again.')
           }
         } else {
           setAuthUser(null)
@@ -437,15 +446,19 @@ export default function ShapeMusicHome() {
     }
     setSetupError(null)
     try {
-      const musicUserId = await getOrCreateAppUser(authUser.id, APP_TYPE)
+      const musicUserIdPromise = getOrCreateAppUser(authUser.id, APP_TYPE)
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('Setup timed out')), 10000)
+      )
+      const musicUserId = await Promise.race([musicUserIdPromise, timeoutPromise])
       if (musicUserId) {
         setAppUserId(musicUserId)
       } else {
-        setSetupError('Failed to set up your account. Please try again.')
+        setSetupError('Failed to connect to database. Please try again.')
       }
     } catch (err) {
       console.error('Retry setup failed:', err)
-      setSetupError('Failed to set up your account. Please try again.')
+      setSetupError('Failed to connect to database. Please try again.')
     }
   }
 
