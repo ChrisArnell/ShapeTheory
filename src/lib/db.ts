@@ -5,8 +5,9 @@ export type AppType = 'entertainment' | 'music'
 
 // Get or create app-specific user mapping
 // This allows the same auth user to have separate profiles per app
+// Uses a SECURITY DEFINER function to atomically create user + mapping (bypasses RLS chicken-and-egg)
 export async function getOrCreateAppUser(authUserId: string, appType: AppType = 'entertainment') {
-  // First, check if mapping exists
+  // First, check if mapping already exists (fast path)
   const { data: existingMapping } = await supabase
     .from('app_user_mappings')
     .select('user_id')
@@ -18,42 +19,24 @@ export async function getOrCreateAppUser(authUserId: string, appType: AppType = 
     return existingMapping.user_id
   }
 
-  // Get the auth user's email
+  // Get the auth user's email for the new user record
   const { data: authData } = await supabase.auth.getUser()
-  const email = authData?.user?.email
+  const email = authData?.user?.email || null
 
-  // Create a new user record for this app
-  const { data: newUser, error: userError } = await supabase
-    .from('users')
-    .insert({
-      email: email ? `${email}_${appType}` : null, // Make email unique per app
-      app_type: appType
+  // Use the atomic function that bypasses RLS to create both user and mapping
+  const { data, error } = await supabase
+    .rpc('create_app_user', {
+      p_auth_user_id: authUserId,
+      p_email: email,
+      p_app_type: appType
     })
-    .select('id')
-    .single()
 
-  if (userError || !newUser) {
-    console.error('Error creating app user:', userError)
+  if (error) {
+    console.error('Error creating app user via RPC:', error)
     return null
   }
 
-  // Create the mapping
-  const { error: mappingError } = await supabase
-    .from('app_user_mappings')
-    .insert({
-      auth_user_id: authUserId,
-      app_type: appType,
-      user_id: newUser.id
-    })
-
-  if (mappingError) {
-    console.error('Error creating app user mapping:', mappingError)
-    // Clean up the user we just created
-    await supabase.from('users').delete().eq('id', newUser.id)
-    return null
-  }
-
-  return newUser.id
+  return data
 }
 
 // Get user ID for a specific app (returns null if not found)
