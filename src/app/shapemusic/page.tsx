@@ -218,15 +218,20 @@ export default function ShapeMusicHome() {
 
   // Check auth state and get/create music user
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setAuthUser(session.user)
-        // Get or create music-specific user
-        const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
-        setAppUserId(musicUserId)
-      }
-      setLoading(false)
-    })
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (session?.user) {
+          setAuthUser(session.user)
+          // Get or create music-specific user
+          const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
+          setAppUserId(musicUserId)
+        }
+        setLoading(false)
+      })
+      .catch((error) => {
+        console.error('Failed to get auth session:', error)
+        setLoading(false) // Allow app to render in logged-out state
+      })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
