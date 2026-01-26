@@ -45,6 +45,7 @@ export default function ActivePredictions({
   onDelete
 }: ActivePredictionsProps) {
   const [showOutcomeFor, setShowOutcomeFor] = useState<string | null>(null)
+  const [deleteConfirmFor, setDeleteConfirmFor] = useState<string | null>(null)
   const [feedbackState, setFeedbackState] = useState<FeedbackState | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
 
@@ -155,7 +156,26 @@ export default function ActivePredictions({
                   {pred.hit_probability}%
                 </span>
 
-                {showOutcomeFor === pred.id ? (
+                {deleteConfirmFor === pred.id ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
+                    <button
+                      onClick={() => {
+                        onDelete(pred.id)
+                        setDeleteConfirmFor(null)
+                      }}
+                      className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmFor(null)}
+                      className="text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-2 py-1 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : showOutcomeFor === pred.id ? (
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOutcomeClick(pred, 'hit')}
@@ -192,7 +212,7 @@ export default function ActivePredictions({
                       Done?
                     </button>
                     <button
-                      onClick={() => onDelete(pred.id)}
+                      onClick={() => setDeleteConfirmFor(pred.id)}
                       className="text-xs text-gray-400 hover:text-gray-600"
                       title="Remove from queue"
                     >
