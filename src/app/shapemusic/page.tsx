@@ -208,6 +208,7 @@ export default function ShapeMusicHome() {
   const [showWaysToUse, setShowWaysToUse] = useState(false)
   const [readInfoButtons, setReadInfoButtons] = useState<Set<string>>(new Set())
   const [chatSessionRestored, setChatSessionRestored] = useState(false)
+  const [setupError, setSetupError] = useState<string | null>(null)
 
   // Shape animation state
   const [shapeAnimating, setShapeAnimating] = useState(false)
@@ -241,9 +242,16 @@ export default function ShapeMusicHome() {
             try {
               const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
               console.log('Got musicUserId:', musicUserId)
-              setAppUserId(musicUserId)
+              if (musicUserId) {
+                setAppUserId(musicUserId)
+                setSetupError(null)
+              } else {
+                console.error('getOrCreateAppUser returned null')
+                setSetupError('Failed to set up your account. Please try again.')
+              }
             } catch (err) {
               console.error('Failed to get/create app user:', err)
+              setSetupError('Failed to set up your account. Please try again.')
             }
           }
           setLoading(false)
@@ -258,11 +266,22 @@ export default function ShapeMusicHome() {
       const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
           setAuthUser(session.user)
-          const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
-          setAppUserId(musicUserId)
+          try {
+            const musicUserId = await getOrCreateAppUser(session.user.id, APP_TYPE)
+            if (musicUserId) {
+              setAppUserId(musicUserId)
+              setSetupError(null)
+            } else {
+              setSetupError('Failed to set up your account. Please try again.')
+            }
+          } catch (err) {
+            console.error('Failed to get/create app user on auth change:', err)
+            setSetupError('Failed to set up your account. Please try again.')
+          }
         } else {
           setAuthUser(null)
           setAppUserId(null)
+          setSetupError(null)
         }
       })
       subscription = data.subscription
@@ -408,6 +427,25 @@ export default function ShapeMusicHome() {
           }
         }))
       }
+    }
+  }
+
+  const retrySetup = async () => {
+    if (!authUser) {
+      console.error('Cannot retry setup: no auth user')
+      return
+    }
+    setSetupError(null)
+    try {
+      const musicUserId = await getOrCreateAppUser(authUser.id, APP_TYPE)
+      if (musicUserId) {
+        setAppUserId(musicUserId)
+      } else {
+        setSetupError('Failed to set up your account. Please try again.')
+      }
+    } catch (err) {
+      console.error('Retry setup failed:', err)
+      setSetupError('Failed to set up your account. Please try again.')
     }
   }
 
@@ -886,13 +924,25 @@ export default function ShapeMusicHome() {
                 placeholder="e.g., Radiohead, Frank Ocean's Blonde, Kendrick Lamar, that one Bon Iver song..."
               />
             </div>
-            <button
-              onClick={captureShape}
-              disabled={shapeLoading || !favorites.trim() || !appUserId}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {shapeLoading ? 'Analyzing...' : !appUserId ? 'Setting up...' : 'Capture My Music Shape'}
-            </button>
+            {setupError ? (
+              <div className="space-y-2">
+                <p className="text-red-600 dark:text-red-400 text-sm">{setupError}</p>
+                <button
+                  onClick={retrySetup}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  Retry Setup
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={captureShape}
+                disabled={shapeLoading || !favorites.trim() || !appUserId}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shapeLoading ? 'Analyzing...' : !appUserId ? 'Setting up...' : 'Capture My Music Shape'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
