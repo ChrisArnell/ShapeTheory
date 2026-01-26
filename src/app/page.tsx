@@ -114,21 +114,29 @@ export default function Home() {
 
   // Check auth state on mount
   useEffect(() => {
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
+    let subscription: { unsubscribe: () => void } | null = null
+
+    try {
+      supabase.auth.getSession()
+        .then(({ data: { session } }) => {
+          setUser(session?.user ?? null)
+          setLoading(false)
+        })
+        .catch((error) => {
+          console.error('Failed to get auth session:', error)
+          setLoading(false) // Allow app to render in logged-out state
+        })
+
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null)
-        setLoading(false)
       })
-      .catch((error) => {
-        console.error('Failed to get auth session:', error)
-        setLoading(false) // Allow app to render in logged-out state
-      })
+      subscription = data.subscription
+    } catch (error) {
+      console.error('Supabase client initialization failed:', error)
+      setLoading(false) // Allow app to render in logged-out state
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
+    return () => subscription?.unsubscribe()
   }, [])
 
   // Load read info buttons from localStorage
