@@ -93,6 +93,9 @@ export default function Home() {
   const [favorites, setFavorites] = useState('')
   const [shape, setShape] = useState<any>(null)
   const [shapeLoading, setShapeLoading] = useState(false)
+  // Track if we've completed the initial shape check for this user
+  // This prevents showing new user screen before we've checked the database
+  const [shapeChecked, setShapeChecked] = useState(false)
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [shapeUpdated, setShapeUpdated] = useState(false)
@@ -189,7 +192,12 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       setShapeLoading(true)
+      setShapeChecked(false) // Reset until we complete the check
       loadExistingShape()
+    } else {
+      // User logged out - reset shape state
+      setShapeChecked(false)
+      setShape(null)
     }
   }, [user])
 
@@ -320,6 +328,7 @@ export default function Home() {
       }
     } finally {
       setShapeLoading(false)
+      setShapeChecked(true) // Mark that we've completed checking for existing shape
     }
   }
 
@@ -342,11 +351,12 @@ export default function Home() {
       }
       
       setShape(data)
+      setShapeChecked(true) // User now has a shape
       setChatMessages([{ role: 'assistant', content: data.summary }])
     } catch (err) {
       console.error('Error capturing shape:', err)
     }
-    
+
     setShapeLoading(false)
   }
 
@@ -802,7 +812,7 @@ export default function Home() {
 
       {!user ? (
         <Auth onAuth={() => {}} />
-      ) : shapeLoading ? (
+      ) : (shapeLoading || !shapeChecked) ? (
         <div className="space-y-4">
           <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
             <p className="text-gray-700 dark:text-gray-300">Loading your shape...</p>

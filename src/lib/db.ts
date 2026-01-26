@@ -461,6 +461,18 @@ export async function recordOutcome(
 
 // Delete a prediction (when user dismisses without completing)
 export async function deletePrediction(predictionId: string) {
+  // Use select() to verify the row exists and we have permission to delete it
+  const { data: existing, error: selectError } = await supabase
+    .from('predictions')
+    .select('id')
+    .eq('id', predictionId)
+    .single()
+
+  if (selectError || !existing) {
+    console.error('Prediction not found or not accessible:', predictionId, selectError)
+    return false
+  }
+
   const { error } = await supabase
     .from('predictions')
     .delete()
@@ -468,6 +480,18 @@ export async function deletePrediction(predictionId: string) {
 
   if (error) {
     console.error('Error deleting prediction:', error)
+    return false
+  }
+
+  // Verify the deletion actually happened
+  const { data: stillExists } = await supabase
+    .from('predictions')
+    .select('id')
+    .eq('id', predictionId)
+    .single()
+
+  if (stillExists) {
+    console.error('Prediction still exists after delete - RLS or trigger may have blocked deletion')
     return false
   }
 
