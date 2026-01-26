@@ -249,6 +249,8 @@ export default function ShapeMusicHome() {
               const musicUserId = await Promise.race([musicUserIdPromise, timeoutPromise])
               console.log('Got musicUserId:', musicUserId)
               if (musicUserId) {
+                // Set shapeLoading BEFORE setAppUserId to prevent flash of new user screen
+                setShapeLoading(true)
                 setAppUserId(musicUserId)
                 setSetupError(null)
               } else {
@@ -279,6 +281,8 @@ export default function ShapeMusicHome() {
             )
             const musicUserId = await Promise.race([musicUserIdPromise, timeoutPromise])
             if (musicUserId) {
+              // Set shapeLoading BEFORE setAppUserId to prevent flash of new user screen
+              setShapeLoading(true)
               setAppUserId(musicUserId)
               setSetupError(null)
             } else {
@@ -389,54 +393,61 @@ export default function ShapeMusicHome() {
   }, [])
 
   const loadExistingShape = async () => {
-    if (!appUserId) return
+    if (!appUserId) {
+      setShapeLoading(false)
+      return
+    }
 
-    const existingShape = await loadUserShape(appUserId, APP_TYPE)
-    if (existingShape && Object.keys(existingShape).length > 0) {
-      setShape({ dimensions: existingShape, summary: 'Welcome back!' })
+    try {
+      const existingShape = await loadUserShape(appUserId, APP_TYPE)
+      if (existingShape && Object.keys(existingShape).length > 0) {
+        setShape({ dimensions: existingShape, summary: 'Welcome back!' })
 
-      const storedMessages = loadChatSession(appUserId)
-      if (storedMessages && storedMessages.length > 0) {
-        setChatMessages(storedMessages)
-      } else {
-        setChatMessages([{
-          role: 'assistant',
-          content: "Hey! Abre here. Good to see you again. Looking for something to listen to? Or want to refine your music shape? Tell me what you've been into lately, or ask for recommendations."
-        }])
-      }
-      setChatSessionRestored(true)
+        const storedMessages = loadChatSession(appUserId)
+        if (storedMessages && storedMessages.length > 0) {
+          setChatMessages(storedMessages)
+        } else {
+          setChatMessages([{
+            role: 'assistant',
+            content: "Hey! Abre here. Good to see you again. Looking for something to listen to? Or want to refine your music shape? Tell me what you've been into lately, or ask for recommendations."
+          }])
+        }
+        setChatSessionRestored(true)
 
-      // Load existing pending predictions
-      const pending = await getPendingPredictions(appUserId, APP_TYPE)
-      if (pending && pending.length > 0) {
-        setActivePredictions(pending.map((p: any) => ({
-          id: p.id,
-          dbId: p.id,
-          title: p.content?.title || 'Unknown',
-          content_type: p.content?.content_type || 'album',
-          hit_probability: p.predicted_enjoyment,
-          status: 'locked' as const,
-          predicted_at: p.predicted_at
-        })))
-      }
-
-      // Load completed predictions
-      const completed = await getCompletedPredictions(appUserId, APP_TYPE)
-      if (completed && completed.length > 0) {
-        setCompletedPredictions(completed.map((p: any) => {
-          let outcome: 'hit' | 'miss' | 'fence' = 'fence'
-          if (p.actual_enjoyment >= 8) outcome = 'hit'
-          else if (p.actual_enjoyment <= 2) outcome = 'miss'
-          return {
+        // Load existing pending predictions
+        const pending = await getPendingPredictions(appUserId, APP_TYPE)
+        if (pending && pending.length > 0) {
+          setActivePredictions(pending.map((p: any) => ({
             id: p.id,
+            dbId: p.id,
             title: p.content?.title || 'Unknown',
             content_type: p.content?.content_type || 'album',
             hit_probability: p.predicted_enjoyment,
-            outcome,
-            completed_at: p.completed_at
-          }
-        }))
+            status: 'locked' as const,
+            predicted_at: p.predicted_at
+          })))
+        }
+
+        // Load completed predictions
+        const completed = await getCompletedPredictions(appUserId, APP_TYPE)
+        if (completed && completed.length > 0) {
+          setCompletedPredictions(completed.map((p: any) => {
+            let outcome: 'hit' | 'miss' | 'fence' = 'fence'
+            if (p.actual_enjoyment >= 8) outcome = 'hit'
+            else if (p.actual_enjoyment <= 2) outcome = 'miss'
+            return {
+              id: p.id,
+              title: p.content?.title || 'Unknown',
+              content_type: p.content?.content_type || 'album',
+              hit_probability: p.predicted_enjoyment,
+              outcome,
+              completed_at: p.completed_at
+            }
+          }))
+        }
       }
+    } finally {
+      setShapeLoading(false)
     }
   }
 
@@ -721,10 +732,18 @@ export default function ShapeMusicHome() {
   const handleDeletePrediction = async (predictionId: string) => {
     const prediction = activePredictions.find(p => p.id === predictionId)
 
+    // If it's locked in the database, delete it there first
     if (prediction?.dbId) {
-      await deletePrediction(prediction.dbId)
+      const deleted = await deletePrediction(prediction.dbId)
+      if (!deleted) {
+        // Database deletion failed - don't remove from local state
+        // This prevents the prediction from "popping back" on refresh
+        console.error('Failed to delete prediction from database')
+        return
+      }
     }
 
+    // Only remove from local state after successful database deletion
     setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
   }
 

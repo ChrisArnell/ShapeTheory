@@ -130,6 +130,10 @@ export default function Home() {
         .then(({ data: { session } }) => {
           loadingResolved = true
           clearTimeout(safetyTimeout)
+          // Set shapeLoading BEFORE setUser to prevent flash of new user screen
+          if (session?.user) {
+            setShapeLoading(true)
+          }
           setUser(session?.user ?? null)
           setLoading(false)
         })
@@ -141,6 +145,10 @@ export default function Home() {
         })
 
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        // Set shapeLoading BEFORE setUser to prevent flash of new user screen
+        if (session?.user) {
+          setShapeLoading(true)
+        }
         setUser(session?.user ?? null)
       })
       subscription = data.subscription
@@ -561,12 +569,18 @@ export default function Home() {
   const handleDeletePrediction = async (predictionId: string) => {
     const prediction = activePredictions.find(p => p.id === predictionId)
 
-    // If it's locked in the database, delete it there too
+    // If it's locked in the database, delete it there first
     if (prediction?.dbId) {
-      await deletePrediction(prediction.dbId)
+      const deleted = await deletePrediction(prediction.dbId)
+      if (!deleted) {
+        // Database deletion failed - don't remove from local state
+        // This prevents the prediction from "popping back" on refresh
+        console.error('Failed to delete prediction from database')
+        return
+      }
     }
 
-    // Remove from local state
+    // Only remove from local state after successful database deletion
     setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
   }
 
