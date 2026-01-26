@@ -15,8 +15,25 @@ interface ActivePredictionsProps {
   predictions: Prediction[]
   onLockIn: (prediction: Prediction) => void
   onDismiss: (predictionId: string) => void
-  onRecordOutcome: (predictionId: string, outcome: 'hit' | 'miss' | 'fence') => void
+  onRecordOutcome: (predictionId: string, outcome: 'hit' | 'miss' | 'fence', notes?: string) => void
   onDelete: (predictionId: string) => void
+}
+
+// Feedback is requested when predictions are surprising:
+// - Hit when prediction was < 60% (unexpected success)
+// - Miss when prediction was > 40% (unexpected failure)
+function shouldRequestFeedback(outcome: 'hit' | 'miss' | 'fence', hitProbability: number): boolean {
+  if (outcome === 'fence') return false
+  if (outcome === 'hit' && hitProbability < 60) return true
+  if (outcome === 'miss' && hitProbability > 40) return true
+  return false
+}
+
+interface FeedbackState {
+  predictionId: string
+  outcome: 'hit' | 'miss'
+  title: string
+  hitProbability: number
 }
 
 export default function ActivePredictions({
@@ -27,6 +44,37 @@ export default function ActivePredictions({
   onDelete
 }: ActivePredictionsProps) {
   const [showOutcomeFor, setShowOutcomeFor] = useState<string | null>(null)
+  const [feedbackState, setFeedbackState] = useState<FeedbackState | null>(null)
+  const [feedbackText, setFeedbackText] = useState('')
+
+  // Handle outcome selection - either record immediately or show feedback modal
+  const handleOutcomeClick = (pred: Prediction, outcome: 'hit' | 'miss' | 'fence') => {
+    setShowOutcomeFor(null)
+
+    if (shouldRequestFeedback(outcome, pred.hit_probability)) {
+      // Show feedback modal for surprising outcomes
+      setFeedbackState({
+        predictionId: pred.id,
+        outcome: outcome as 'hit' | 'miss',
+        title: pred.title,
+        hitProbability: pred.hit_probability
+      })
+      setFeedbackText('')
+    } else {
+      // Record immediately for expected outcomes
+      onRecordOutcome(pred.id, outcome)
+    }
+  }
+
+  // Submit feedback and record outcome
+  const handleFeedbackSubmit = (skip: boolean = false) => {
+    if (!feedbackState) return
+
+    const notes = skip ? undefined : feedbackText.trim() || undefined
+    onRecordOutcome(feedbackState.predictionId, feedbackState.outcome, notes)
+    setFeedbackState(null)
+    setFeedbackText('')
+  }
 
   const suggested = predictions.filter(p => p.status === 'suggested')
   const locked = predictions.filter(p => p.status === 'locked')
@@ -101,29 +149,20 @@ export default function ActivePredictions({
                 {showOutcomeFor === pred.id ? (
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => {
-                        onRecordOutcome(pred.id, 'hit')
-                        setShowOutcomeFor(null)
-                      }}
+                      onClick={() => handleOutcomeClick(pred, 'hit')}
                       className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
                     >
                       Hit
                     </button>
                     <button
-                      onClick={() => {
-                        onRecordOutcome(pred.id, 'fence')
-                        setShowOutcomeFor(null)
-                      }}
+                      onClick={() => handleOutcomeClick(pred, 'fence')}
                       className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
                       title="Use sparingly - for genuine ambiguity"
                     >
                       Fence
                     </button>
                     <button
-                      onClick={() => {
-                        onRecordOutcome(pred.id, 'miss')
-                        setShowOutcomeFor(null)
-                      }}
+                      onClick={() => handleOutcomeClick(pred, 'miss')}
                       className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
                     >
                       Miss
@@ -154,6 +193,53 @@ export default function ActivePredictions({
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Modal for surprising outcomes */}
+      {feedbackState && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => handleFeedbackSubmit(true)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2">
+              {feedbackState.outcome === 'hit' ? 'Unexpected hit!' : 'Unexpected miss!'}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <strong>{feedbackState.title}</strong> was predicted at {feedbackState.hitProbability}%
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              {feedbackState.outcome === 'hit'
+                ? "What did you like about this that we might not be capturing?"
+                : "What didn't you like that we might not be capturing?"}
+            </p>
+            <textarea
+              value={feedbackText}
+              onChange={e => setFeedbackText(e.target.value)}
+              placeholder="E.g., the pacing, a specific actor, the soundtrack, themes..."
+              className="w-full p-3 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm resize-none"
+              rows={3}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => handleFeedbackSubmit(false)}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+              >
+                Submit
+              </button>
+              <button
+                onClick={() => handleFeedbackSubmit(true)}
+                className="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm"
+              >
+                Skip
+              </button>
+            </div>
           </div>
         </div>
       )}

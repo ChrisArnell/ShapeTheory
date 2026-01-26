@@ -492,13 +492,13 @@ export default function Home() {
   }
 
   // Record outcome for a locked prediction
-  const handleRecordOutcome = async (predictionId: string, outcome: 'hit' | 'miss' | 'fence') => {
+  const handleRecordOutcome = async (predictionId: string, outcome: 'hit' | 'miss' | 'fence', notes?: string) => {
     const prediction = activePredictions.find(p => p.id === predictionId)
     if (!prediction?.dbId) return
 
     // Map outcome to number for database: hit=10, fence=5, miss=0
     const outcomeValue = outcome === 'hit' ? 10 : outcome === 'fence' ? 5 : 0
-    const success = await recordOutcome(prediction.dbId, outcomeValue)
+    const success = await recordOutcome(prediction.dbId, outcomeValue, undefined, notes)
 
     if (success) {
       // Add to completed predictions
