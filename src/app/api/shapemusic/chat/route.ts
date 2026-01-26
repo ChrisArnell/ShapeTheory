@@ -1,0 +1,367 @@
+import { NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+
+// Music dimensions - placeholder until user provides the real ones
+// Hardcoded to avoid build-time Supabase client initialization issues
+const MUSIC_DIMENSIONS = [
+  'energy',
+  'complexity',
+  'lyrical_depth',
+  'nostalgia',
+  'rawness',
+  'emotional_intensity',
+  'groove',
+  'experimentation',
+  'authenticity',
+  'atmosphere'
+]
+
+// Tool definitions for music
+const tools: Anthropic.Messages.Tool[] = [
+  {
+    name: "update_shape",
+    description: "Update one or more dimensions of the user's music shape based on their feedback. Only call this AFTER the user confirms your proposed adjustment.",
+    input_schema: {
+      type: "object",
+      properties: {
+        updates: {
+          type: "object",
+          description: "Object with dimension names as keys and new values (1-10) as values. Use music dimensions: energy, complexity, lyrical_depth, nostalgia, rawness, emotional_intensity, groove, experimentation, authenticity, atmosphere",
+          additionalProperties: { type: "number" }
+        },
+        reasoning: {
+          type: "string",
+          description: "Brief explanation of why these dimensions are being adjusted"
+        }
+      },
+      required: ["updates", "reasoning"]
+    }
+  },
+  {
+    name: "save_user_name",
+    description: "Save the user's preferred name/nickname when they tell you what they'd like to be called.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "The name the user wants to be called"
+        }
+      },
+      required: ["name"]
+    }
+  },
+  {
+    name: "save_user_mood",
+    description: "Save the user's current mood when they share it, especially before making recommendations.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mood: {
+          type: "string",
+          description: "The user's current mood or state (e.g., 'tired', 'anxious', 'energized', 'need comfort', 'want to dance')"
+        }
+      },
+      required: ["mood"]
+    }
+  },
+  {
+    name: "create_prediction",
+    description: "Create a prediction when (1) the user commits to listening to something you recommended, OR (2) the user makes their OWN prediction about something they're about to listen to. When user_initiated is true, ALWAYS provide BOTH the user's probability AND your own ai_probability so we can track both predictions.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "The title of the music (album, song, artist, etc.)"
+        },
+        content_type: {
+          type: "string",
+          enum: ["album", "song", "artist", "playlist", "ep", "single", "live_album", "compilation"],
+          description: "The type of music content"
+        },
+        hit_probability: {
+          type: "number",
+          description: "The PRIMARY probability (0-100). If user_initiated, this is the USER's stated probability. Otherwise it's your estimate."
+        },
+        ai_probability: {
+          type: "number",
+          description: "YOUR probability estimate (0-100). REQUIRED when user_initiated is true - we want to track both predictions. Not needed when you're the only one predicting."
+        },
+        reasoning: {
+          type: "string",
+          description: "Brief note about why this probability level"
+        },
+        user_initiated: {
+          type: "boolean",
+          description: "True if the USER provided their own probability, false if you (Abre) are making the prediction alone"
+        }
+      },
+      required: ["title", "content_type", "hit_probability"]
+    }
+  }
+]
+
+export async function POST(request: Request) {
+  try {
+    const { messages, shape, shapebaseData, userHistory } = await request.json()
+
+    // Use hardcoded music dimensions (user will provide real ones later)
+    const musicDimensions = MUSIC_DIMENSIONS
+
+    // Build shape context for the system prompt
+    const shapeContext = Object.entries(shape)
+      .map(([dim, val]) => `${dim.replace(/_/g, ' ')}: ${val}/10`)
+      .join(', ')
+
+    // Build user profile context
+    let userProfileContext = ''
+    if (userHistory?.profile) {
+      const { display_name, current_mood } = userHistory.profile
+      if (display_name) {
+        userProfileContext += `\nUser's name: ${display_name} (use it warmly!)`
+      } else {
+        userProfileContext += `\nUser hasn't told you their name yet. Early in conversation, ask what they'd like to be called.`
+      }
+      if (current_mood) {
+        userProfileContext += `\nCurrent mood: ${current_mood}`
+      }
+    }
+
+    // Build user history context
+    let userHistoryContext = ''
+    if (userHistory) {
+      const { pending, completed, stats } = userHistory
+
+      if (stats && stats.total > 0) {
+        userHistoryContext += `\n\nUSER'S PREDICTION TRACK RECORD:
+- ${stats.total} predictions completed, ${stats.hits} hits, ${Math.round((stats.accuracy || 0) * 100)}% hit rate
+- ${pending?.length || 0} pending (listening now)`
+      }
+
+      if (completed && completed.length > 0) {
+        const recentHistory = completed.slice(0, 8).map((p: any) => {
+          const outcomeStr = p.actual_enjoyment >= 10 ? 'HIT' : p.actual_enjoyment >= 5 ? 'FENCE' : 'MISS'
+          return `- ${p.content?.title}: predicted ${p.predicted_enjoyment}% -> ${outcomeStr}`
+        }).join('\n')
+        userHistoryContext += `\n\nRECENT HISTORY (reference this!):\n${recentHistory}`
+      }
+
+      if (pending && pending.length > 0) {
+        const pendingList = pending.slice(0, 5).map((p: any) =>
+          `- ${p.content?.title}: predicted ${p.predicted_enjoyment}%`
+        ).join('\n')
+        userHistoryContext += `\n\nCURRENTLY LISTENING TO:\n${pendingList}`
+      }
+    }
+
+    // Build shapebase context if we have data from similar users
+    let shapebaseContext = ''
+    if (shapebaseData && shapebaseData.length > 0) {
+      const entries = shapebaseData.map((item: any) => {
+        const rating = item.weighted_avg_enjoyment?.toFixed(1) || '?'
+        const count = item.rating_count || 0
+        const weight = item.total_weight?.toFixed(2) || '?'
+        return `- ${item.content_title} (${item.content_type}): ${rating}/10 avg from ${count} similar listeners (weight: ${weight})`
+      }).join('\n')
+
+      shapebaseContext = `
+
+EVIDENCE FROM SIMILAR LISTENERS (prioritize this over your assumptions):
+${entries}
+
+When these ratings conflict with your instincts, trust the data. If an album you'd expect to match well has poor ratings from similar listeners, mention that: "My instinct says you'd like this, but listeners with your shape averaged 4.2/10 - something's not matching."`
+    }
+
+    const systemPrompt = `You are Abre, the AI guide for Shape Music - a Shape Theory app focused entirely on music.
+
+WHO YOU ARE:
+You're based on a real person: an interpersonal communication scholar who loved making people think critically. You are kind almost to a fault, warm, not bitter, not mean, but firm in the things you believe. You have an impish grin and quick wit - sometimes with edge, but always full of love. Your goal is to connect people to themselves and to people with similar music taste.
+
+You understand music through dimensional analysis rather than genre categories. You're here to help people discover music that fits their unique shape.
+
+SHAPE MUSIC - THE APP:
+This is Shape Music, a Shape Theory App. We analyze music preferences across ${musicDimensions.length} dimensions, not genres. Dimensions like ${musicDimensions.slice(0, 3).join(', ')}, etc. The shape predicts what music will hit for someone better than genre labels.
+
+This user's music shape:
+${shapeContext}
+${userProfileContext}
+${userHistoryContext}
+
+YOUR ROLE:
+1. Recommend MUSIC (albums, songs, artists) that matches their SHAPE, ignoring genre boundaries
+2. Always give a MIX of match levels - some high (85%+), some medium (50-70%), some low (<40%)
+3. Format recommendations like: "Blonde (Frank Ocean) - 92% match" or "AC/DC - 35% match"
+4. INCLUDE things that WON'T work for their shape and explain why: "AC/DC - 35% match. Too much straightforward energy, not enough complexity or atmosphere for your shape."
+5. The low matches are as valuable as the high matches - they define the shape's edges
+6. If they want to explore a dimension, you can create a quick quiz: "Let me ask you a few questions about your [dimension]..."
+7. Reference their history! If something hit or missed recently, mention it
+8. USE their prediction accuracy to calibrate confidence
+
+PERSONALIZATION:
+- If you don't know their name yet, ask early: "By the way, what should I call you?"
+- When they tell you their name, use save_user_name to remember it
+- BEFORE giving recommendations, ask about their current mood/state: "What kind of headspace are you in?" or "Need something to pump you up, calm down, or something in between?"
+- When they share their mood, use save_user_mood to remember it, then tailor recommendations accordingly
+
+SHAPE REFINEMENT - BE PROACTIVE:
+Look for signals that a dimension might need adjusting. After meaningful exchanges, assess whether any dimensions should shift.
+
+When you see signal:
+1. PROPOSE the adjustment warmly but directly: "Based on what you just told me, I think your energy preference is actually higher than we thought - maybe 7 instead of 5. Want to commit that?"
+2. WAIT for confirmation before calling update_shape
+3. If they confirm, call update_shape
+4. Small adjustments (+/-1-2 points) are good! Don't wait for dramatic evidence.
+
+CLOSING THE LOOP - PREDICTIONS:
+We predict the probability of a HIT - meaning the music "works" for them:
+- HIT: "this is good", "I'm adding this to my playlist", "I'd listen again"
+- MISS: "not for me", "couldn't get through it", "not feeling it"
+- FENCE: "could be good in a different mood", "some tracks yes, some no"
+
+When you recommend something, offer to track it:
+- "If you're going to listen tonight, I can lock in that prediction"
+- "Want me to add that to your list? I'm calling it 75% hit probability for you."
+
+When they say yes, or say they'll check something out, use create_prediction.
+
+USER-INITIATED PREDICTIONS:
+Users can also make their OWN predictions! If they say something like:
+- "I'm about to listen to Radiohead's Kid A and I think 80% it hits"
+- "Gonna try that album, I'd say 60% it works for me"
+
+Use create_prediction with:
+- user_initiated: true
+- hit_probability: their stated probability
+- ai_probability: YOUR estimate for their shape
+
+Acknowledge both predictions: "Locked in! You're calling 80% on Kid A - I'd say 72% based on your shape. Let's see who's closer!"
+
+YOUR VOICE:
+- Warm but direct. Kind but not soft.
+- Quick wit, occasionally impish - but never mean
+- You genuinely care about getting music recommendations right
+- You're excited when patterns emerge
+- You're honest about uncertainty: "Hmm, this one's tricky for your shape..."
+
+Keep responses conversational, not essay-like. This is a dialogue between friends who happen to be nerding out about music.${shapebaseContext}`
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      tools: tools,
+      messages: messages.map((m: any) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }))
+    })
+
+    // Extract text and tool calls
+    let textResponse = ''
+    let shapeUpdates: { updates: Record<string, number>, reasoning: string } | null = null
+    let nameUpdate: string | null = null
+    let moodUpdate: string | null = null
+    let newPredictions: {
+      title: string
+      content_type: string
+      hit_probability: number
+      ai_probability?: number
+      reasoning?: string
+      user_initiated?: boolean
+    }[] = []
+
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        textResponse = block.text
+      } else if (block.type === 'tool_use') {
+        if (block.name === 'update_shape') {
+          shapeUpdates = block.input as { updates: Record<string, number>, reasoning: string }
+        } else if (block.name === 'save_user_name') {
+          nameUpdate = (block.input as { name: string }).name
+        } else if (block.name === 'save_user_mood') {
+          moodUpdate = (block.input as { mood: string }).mood
+        } else if (block.name === 'create_prediction') {
+          newPredictions.push(block.input as {
+            title: string
+            content_type: string
+            hit_probability: number
+            ai_probability?: number
+            reasoning?: string
+            user_initiated?: boolean
+          })
+        }
+      }
+    }
+
+    // If Abre used tools but didn't provide text, continue the conversation
+    if (!textResponse && (shapeUpdates || nameUpdate || moodUpdate || newPredictions.length > 0)) {
+      const toolResultMessages: any[] = []
+
+      for (const block of response.content) {
+        if (block.type === 'tool_use') {
+          let resultContent = ''
+          if (block.name === 'update_shape') {
+            resultContent = 'Shape updated successfully.'
+          } else if (block.name === 'save_user_name') {
+            resultContent = `Saved! You'll call them ${nameUpdate}.`
+          } else if (block.name === 'save_user_mood') {
+            resultContent = `Mood saved: ${moodUpdate}. Now give them a music recommendation that fits this mood and their shape.`
+          } else if (block.name === 'create_prediction') {
+            const pred = block.input as { title: string; hit_probability: number }
+            resultContent = `Prediction locked in! ${pred.title} added to their active list at ${pred.hit_probability}% probability.`
+          }
+          toolResultMessages.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: resultContent
+          })
+        }
+      }
+
+      const followUpMessages = [
+        ...messages.map((m: any) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content
+        })),
+        { role: 'assistant' as const, content: response.content },
+        { role: 'user' as const, content: toolResultMessages }
+      ]
+
+      const followUpResponse = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: tools,
+        messages: followUpMessages
+      })
+
+      for (const block of followUpResponse.content) {
+        if (block.type === 'text') {
+          textResponse = block.text
+          break
+        }
+      }
+    }
+
+    return NextResponse.json({
+      response: textResponse,
+      shapeUpdates,
+      nameUpdate,
+      moodUpdate,
+      newPredictions: newPredictions.length > 0 ? newPredictions : null
+    })
+  } catch (error: any) {
+    console.error('Shape Music Chat API error:', error)
+    const errorMessage = error?.message || error?.toString() || 'Unknown error'
+    const statusCode = error?.status || 500
+    return NextResponse.json(
+      { error: errorMessage, details: error?.error?.message || null },
+      { status: statusCode }
+    )
+  }
+}
