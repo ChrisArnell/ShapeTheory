@@ -221,7 +221,7 @@ export default function ActivePredictions({
             <textarea
               value={feedbackText}
               onChange={e => setFeedbackText(e.target.value)}
-              placeholder="E.g., the pacing, a specific actor, the soundtrack, themes..."
+              placeholder="What stood out that we might be missing?"
               className="w-full p-3 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm resize-none"
               rows={3}
               autoFocus
