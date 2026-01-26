@@ -219,10 +219,21 @@ export default function ShapeMusicHome() {
   // Check auth state and get/create music user
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null
+    let loadingResolved = false
+
+    // Safety timeout: ensure loading state resolves even if something unexpected happens
+    const safetyTimeout = setTimeout(() => {
+      if (!loadingResolved) {
+        console.warn('Auth check timed out, proceeding in logged-out state')
+        setLoading(false)
+      }
+    }, 3000)
 
     try {
       supabase.auth.getSession()
         .then(async ({ data: { session } }) => {
+          loadingResolved = true
+          clearTimeout(safetyTimeout)
           if (session?.user) {
             setAuthUser(session.user)
             // Get or create music-specific user
@@ -232,6 +243,8 @@ export default function ShapeMusicHome() {
           setLoading(false)
         })
         .catch((error) => {
+          loadingResolved = true
+          clearTimeout(safetyTimeout)
           console.error('Failed to get auth session:', error)
           setLoading(false) // Allow app to render in logged-out state
         })
@@ -248,11 +261,16 @@ export default function ShapeMusicHome() {
       })
       subscription = data.subscription
     } catch (error) {
+      loadingResolved = true
+      clearTimeout(safetyTimeout)
       console.error('Supabase client initialization failed:', error)
       setLoading(false) // Allow app to render in logged-out state
     }
 
-    return () => subscription?.unsubscribe()
+    return () => {
+      clearTimeout(safetyTimeout)
+      subscription?.unsubscribe()
+    }
   }, [])
 
   // Load read info buttons from localStorage
