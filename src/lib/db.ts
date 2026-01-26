@@ -3,40 +3,64 @@ import { supabase } from './supabase'
 // App types
 export type AppType = 'entertainment' | 'music'
 
+// Deduplication: prevent multiple concurrent calls for the same user/app
+// This is a client-side optimization - the database also handles concurrent access safely
+const pendingAppUserCalls = new Map<string, Promise<string | null>>()
+
 // Get or create app-specific user mapping
 // This allows the same auth user to have separate profiles per app
 // Uses a SECURITY DEFINER function to atomically create user + mapping (bypasses RLS chicken-and-egg)
-export async function getOrCreateAppUser(authUserId: string, appType: AppType = 'entertainment') {
-  // First, check if mapping already exists (fast path)
-  const { data: existingMapping } = await supabase
-    .from('app_user_mappings')
-    .select('user_id')
-    .eq('auth_user_id', authUserId)
-    .eq('app_type', appType)
-    .single()
+export async function getOrCreateAppUser(authUserId: string, appType: AppType = 'entertainment'): Promise<string | null> {
+  const cacheKey = `${authUserId}:${appType}`
 
-  if (existingMapping) {
-    return existingMapping.user_id
+  // If there's already a pending call for this user/app, return the same promise
+  const pendingCall = pendingAppUserCalls.get(cacheKey)
+  if (pendingCall) {
+    console.log('Deduplicating concurrent getOrCreateAppUser call for:', cacheKey)
+    return pendingCall
   }
 
-  // Get the auth user's email for the new user record
-  const { data: authData } = await supabase.auth.getUser()
-  const email = authData?.user?.email || null
+  // Create the promise and store it
+  const promise = (async () => {
+    try {
+      // First, check if mapping already exists (fast path)
+      const { data: existingMapping } = await supabase
+        .from('app_user_mappings')
+        .select('user_id')
+        .eq('auth_user_id', authUserId)
+        .eq('app_type', appType)
+        .single()
 
-  // Use the atomic function that bypasses RLS to create both user and mapping
-  const { data, error } = await supabase
-    .rpc('create_app_user', {
-      p_auth_user_id: authUserId,
-      p_email: email,
-      p_app_type: appType
-    })
+      if (existingMapping) {
+        return existingMapping.user_id
+      }
 
-  if (error) {
-    console.error('Error creating app user via RPC:', error)
-    return null
-  }
+      // Get the auth user's email for the new user record
+      const { data: authData } = await supabase.auth.getUser()
+      const email = authData?.user?.email || null
 
-  return data
+      // Use the atomic function that bypasses RLS to create both user and mapping
+      const { data, error } = await supabase
+        .rpc('create_app_user', {
+          p_auth_user_id: authUserId,
+          p_email: email,
+          p_app_type: appType
+        })
+
+      if (error) {
+        console.error('Error creating app user via RPC:', error)
+        return null
+      }
+
+      return data
+    } finally {
+      // Clean up the pending call after completion
+      pendingAppUserCalls.delete(cacheKey)
+    }
+  })()
+
+  pendingAppUserCalls.set(cacheKey, promise)
+  return promise
 }
 
 // Get user ID for a specific app (returns null if not found)
