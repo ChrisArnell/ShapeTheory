@@ -926,14 +926,10 @@ export default function Home() {
                   {/* Calibration Summary */}
                   <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-sm">
                     {(() => {
-                      // Count fence as 0.5 (it's still signal)
                       const total = completedPredictions.length
                       const hits = completedPredictions.filter(p => p.outcome === 'hit').length
                       const fences = completedPredictions.filter(p => p.outcome === 'fence').length
                       const effectiveHits = hits + (fences * 0.5)
-                      const avgProbability = total > 0
-                        ? Math.round(completedPredictions.reduce((sum, p) => sum + p.hit_probability, 0) / total)
-                        : 0
                       const actualHitRate = total > 0
                         ? Math.round((effectiveHits / total) * 100)
                         : 0
@@ -942,18 +938,49 @@ export default function Home() {
                         return <span className="text-gray-500">No outcomes yet</span>
                       }
 
+                      // Exponential decay weighting (half-life of 10 predictions)
+                      // More recent predictions are weighted more heavily
+                      const HALF_LIFE = 10
+                      const DECAY = Math.pow(0.5, 1 / HALF_LIFE) // ~0.933
+
+                      // Sort by completion date, most recent first
+                      const sorted = [...completedPredictions].sort(
+                        (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+                      )
+
+                      let weightedPredSum = 0
+                      let weightedActualSum = 0
+                      let totalWeight = 0
+
+                      sorted.forEach((pred, i) => {
+                        const weight = Math.pow(DECAY, i)
+                        weightedPredSum += weight * pred.hit_probability
+                        const actualValue = pred.outcome === 'hit' ? 100 : pred.outcome === 'fence' ? 50 : 0
+                        weightedActualSum += weight * actualValue
+                        totalWeight += weight
+                      })
+
+                      const weightedAvgPrediction = Math.round(weightedPredSum / totalWeight)
+                      const weightedActualRate = Math.round(weightedActualSum / totalWeight)
+
+                      // Need at least 10 predictions to assess calibration
+                      const canAssessCalibration = total >= 10
+                      const calibrationDiff = weightedAvgPrediction - weightedActualRate
+
                       return (
                         <div className="space-y-1">
                           <div>
                             <strong>{effectiveHits}/{total}</strong> hits ({actualHitRate}% hit rate)
                           </div>
                           <div className="text-xs text-gray-500">
-                            Avg prediction: {avgProbability}% · Actual: {actualHitRate}%
-                            {Math.abs(avgProbability - actualHitRate) <= 10
-                              ? ' · Well calibrated!'
-                              : avgProbability > actualHitRate
-                              ? ' · Predictions running hot'
-                              : ' · Predictions running cold'}
+                            Avg prediction: {weightedAvgPrediction}% · Actual: {weightedActualRate}%
+                            {canAssessCalibration && (
+                              Math.abs(calibrationDiff) <= 10
+                                ? ' · Well calibrated!'
+                                : calibrationDiff > 0
+                                ? ' · Predictions running hot'
+                                : ' · Predictions running cold'
+                            )}
                           </div>
                         </div>
                       )
