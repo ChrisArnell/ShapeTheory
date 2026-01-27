@@ -115,6 +115,9 @@ export default function Home() {
   const [displayDimensions, setDisplayDimensions] = useState<Record<string, number> | null>(null)
   const [glowIntensity, setGlowIntensity] = useState(0)
 
+  // Track the user ID we've loaded shape for to prevent duplicate loads
+  const loadedUserIdRef = useRef<string | null>(null)
+
   // Check auth state on mount
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null
@@ -191,11 +194,19 @@ export default function Home() {
   // Load existing shape when user logs in
   useEffect(() => {
     if (user) {
+      // Only load if user ID changed - prevents duplicate loads from Supabase
+      // firing onAuthStateChange multiple times with new object references
+      if (loadedUserIdRef.current === user.id) {
+        // Same user, already loaded or loading - don't re-trigger
+        return
+      }
+      loadedUserIdRef.current = user.id
       setShapeLoading(true)
       setShapeChecked(false) // Reset until we complete the check
       loadExistingShape()
     } else {
-      // User logged out - reset shape state
+      // User logged out - reset shape state and tracked user ID
+      loadedUserIdRef.current = null
       setShapeChecked(false)
       setShape(null)
     }
