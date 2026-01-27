@@ -201,6 +201,7 @@ export default function ShapeMusicHome() {
   // Track if we've completed the initial shape check for this user
   // This prevents showing new user screen before we've checked the database
   const [shapeChecked, setShapeChecked] = useState(false)
+  const [chatLoading, setChatLoading] = useState(false)
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [shapeUpdated, setShapeUpdated] = useState(false)
@@ -534,7 +535,7 @@ export default function ShapeMusicHome() {
     const newMessages = [...chatMessages, { role: 'user', content: input }]
     setChatMessages(newMessages)
     setInput('')
-    setShapeLoading(true)
+    setChatLoading(true)
 
     try {
       const [shapebaseData, userHistory] = await Promise.all([
@@ -595,7 +596,7 @@ export default function ShapeMusicHome() {
       console.error('Error sending message:', err)
     }
 
-    setShapeLoading(false)
+    setChatLoading(false)
   }
 
   const handleSignOut = async () => {
@@ -1041,7 +1042,7 @@ export default function ShapeMusicHome() {
                     {msg.content}
                   </div>
                 ))}
-                {shapeLoading && (
+                {chatLoading && (
                   <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mr-8">
                     Thinking...
                   </div>
@@ -1058,7 +1059,7 @@ export default function ShapeMusicHome() {
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={shapeLoading || !input.trim()}
+                  disabled={chatLoading || !input.trim()}
                   className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
                 >
                   Send
