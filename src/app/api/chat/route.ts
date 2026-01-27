@@ -136,7 +136,7 @@ export async function POST(request: Request) {
 
       if (pending && pending.length > 0) {
         const pendingList = pending.slice(0, 5).map((p: any) =>
-          `- ${p.content?.title}: predicted ${p.predicted_enjoyment}/10`
+          `- ${p.content?.title}: predicted ${p.predicted_enjoyment}%`
         ).join('\n')
         userHistoryContext += `\n\nCURRENTLY WATCHING/LISTENING:\n${pendingList}`
       }
