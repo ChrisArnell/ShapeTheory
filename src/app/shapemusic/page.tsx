@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import {
@@ -198,6 +198,9 @@ export default function ShapeMusicHome() {
   const [favorites, setFavorites] = useState('')
   const [shape, setShape] = useState<any>(null)
   const [shapeLoading, setShapeLoading] = useState(false)
+  // Track if we've completed the initial shape check for this user
+  // This prevents showing new user screen before we've checked the database
+  const [shapeChecked, setShapeChecked] = useState(false)
   const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [shapeUpdated, setShapeUpdated] = useState(false)
@@ -217,6 +220,9 @@ export default function ShapeMusicHome() {
   const [changedDimensions, setChangedDimensions] = useState<string[]>([])
   const [displayDimensions, setDisplayDimensions] = useState<Record<string, number> | null>(null)
   const [glowIntensity, setGlowIntensity] = useState(0)
+
+  // Track the user ID we've loaded shape for to prevent duplicate loads
+  const loadedUserIdRef = useRef<string | null>(null)
 
   // Check auth state and get/create music user
   useEffect(() => {
@@ -334,7 +340,19 @@ export default function ShapeMusicHome() {
   // Load existing shape when app user is ready
   useEffect(() => {
     if (appUserId) {
+      // Only load if user ID changed - prevents duplicate loads
+      if (loadedUserIdRef.current === appUserId) {
+        return
+      }
+      loadedUserIdRef.current = appUserId
+      setShapeLoading(true)
+      setShapeChecked(false)
       loadExistingShape()
+    } else {
+      // User logged out - reset shape state and tracked user ID
+      loadedUserIdRef.current = null
+      setShapeChecked(false)
+      setShape(null)
     }
   }, [appUserId])
 
@@ -448,6 +466,7 @@ export default function ShapeMusicHome() {
       }
     } finally {
       setShapeLoading(false)
+      setShapeChecked(true) // Mark that we've completed checking for existing shape
     }
   }
 
@@ -499,6 +518,7 @@ export default function ShapeMusicHome() {
       }
 
       setShape(data)
+      setShapeChecked(true) // User now has a shape
       setChatMessages([{ role: 'assistant', content: data.summary }])
       setChatSessionRestored(true)
     } catch (err) {
@@ -956,6 +976,12 @@ export default function ShapeMusicHome() {
 
         {!authUser ? (
           <MusicAuth onAuth={() => {}} />
+        ) : (shapeLoading || !shapeChecked) ? (
+          <div className="space-y-4">
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+              <p className="text-gray-700 dark:text-gray-300">Loading your music shape...</p>
+            </div>
+          </div>
         ) : !shape ? (
           <div className="space-y-4">
             {/* Abre intro for new users */}
