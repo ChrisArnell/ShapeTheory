@@ -13,6 +13,10 @@ import ActivePredictions from '@/components/ActivePredictions'
 const CHAT_STORAGE_KEY = 'shapetheory_chat_session'
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
 
+// Beta access code
+const BETA_ACCESS_CODE = 'abresvn'
+const ACCESS_VERIFIED_KEY = 'shapetheory_access_verified'
+
 interface ChatSession {
   messages: { role: string; content: string }[]
   lastActivity: number
@@ -108,6 +112,11 @@ export default function Home() {
   const [readInfoButtons, setReadInfoButtons] = useState<Set<string>>(new Set())
   const [chatSessionRestored, setChatSessionRestored] = useState(false)
 
+  // Beta access gate for new users
+  const [accessVerified, setAccessVerified] = useState(false)
+  const [accessCodeInput, setAccessCodeInput] = useState('')
+  const [accessCodeError, setAccessCodeError] = useState('')
+
   // Shape animation state
   const [shapeAnimating, setShapeAnimating] = useState(false)
   const [animationPhase, setAnimationPhase] = useState<'idle' | 'rising' | 'morphing' | 'holding' | 'falling'>('idle')
@@ -181,6 +190,16 @@ export default function Home() {
     }
   }, [])
 
+  // Check for beta access verification in localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const verified = localStorage.getItem(ACCESS_VERIFIED_KEY)
+      if (verified === 'true') {
+        setAccessVerified(true)
+      }
+    }
+  }, [])
+
   // Helper to mark an info button as read
   const markInfoRead = (key: string) => {
     setReadInfoButtons(prev => {
@@ -189,6 +208,17 @@ export default function Home() {
       localStorage.setItem('shapetheory_read_info', JSON.stringify(Array.from(newSet)))
       return newSet
     })
+  }
+
+  // Verify beta access code
+  const verifyAccessCode = () => {
+    if (accessCodeInput.toLowerCase().trim() === BETA_ACCESS_CODE) {
+      setAccessVerified(true)
+      setAccessCodeError('')
+      localStorage.setItem(ACCESS_VERIFIED_KEY, 'true')
+    } else {
+      setAccessCodeError('Invalid access code. Please try again.')
+    }
   }
 
   // Load existing shape when user logs in
@@ -821,12 +851,56 @@ export default function Home() {
         </div>
       )}
 
+      {/* Beta Access Code Popup - shown for new users who haven't verified */}
+      {user && !shape && !shapeLoading && shapeChecked && !accessVerified && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">Beta Access Required</h2>
+            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+              <p>
+                Access is currently restricted to beta testers. Please enter your access code to continue.
+              </p>
+            </div>
+            <div className="mt-4">
+              <input
+                type="text"
+                value={accessCodeInput}
+                onChange={(e) => {
+                  setAccessCodeInput(e.target.value)
+                  setAccessCodeError('')
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && verifyAccessCode()}
+                placeholder="Enter access code"
+                className="w-full p-3 border rounded-lg bg-white dark:bg-gray-900 dark:border-gray-700"
+                autoFocus
+              />
+              {accessCodeError && (
+                <p className="text-red-500 text-sm mt-2">{accessCodeError}</p>
+              )}
+            </div>
+            <button
+              onClick={verifyAccessCode}
+              className="mt-4 w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Submit
+            </button>
+          </div>
+        </div>
+      )}
+
       {!user ? (
         <Auth onAuth={() => {}} />
       ) : (shapeLoading || !shapeChecked) ? (
         <div className="space-y-4">
           <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
             <p className="text-gray-700 dark:text-gray-300">Loading your shape...</p>
+          </div>
+        </div>
+      ) : !shape && !accessVerified ? (
+        // New user without access - show placeholder while access modal is displayed
+        <div className="space-y-4">
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+            <p className="text-gray-700 dark:text-gray-300">Welcome! Please enter your access code above.</p>
           </div>
         </div>
       ) : !shape ? (
