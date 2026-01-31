@@ -20,6 +20,7 @@ import {
 } from '@/lib/db'
 import ShapeRadar from '@/components/ShapeRadar'
 import ActivePredictions from '@/components/ActivePredictions'
+import TasteBudsTable from '@/components/TasteBudsTable'
 
 const APP_TYPE: AppType = 'music'
 
@@ -1322,6 +1323,15 @@ export default function ShapeMusicHome() {
                 ))}
               </div>
             </div>
+
+            {/* Taste Buds Table */}
+            {appUserId && (
+              <TasteBudsTable
+                userId={appUserId}
+                userShape={shape.dimensions}
+                appType={APP_TYPE}
+              />
+            )}
           </div>
         )}
       </motion.div>
