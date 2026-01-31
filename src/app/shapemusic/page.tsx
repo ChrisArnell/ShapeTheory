@@ -211,6 +211,8 @@ export default function ShapeMusicHome() {
   const [showAppInfo, setShowAppInfo] = useState(false)
   const [showAbreInfo, setShowAbreInfo] = useState(false)
   const [showWaysToUse, setShowWaysToUse] = useState(false)
+  const [showTastebuds, setShowTastebuds] = useState(false)
+  const [showTasteBuds, setShowTasteBuds] = useState(false)
   const [readInfoButtons, setReadInfoButtons] = useState<Set<string>>(new Set())
   const [chatSessionRestored, setChatSessionRestored] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
@@ -822,6 +824,9 @@ export default function ShapeMusicHome() {
               <p className="text-gray-600 dark:text-gray-400">
                 A Shape Theory App
               </p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 italic">
+                Accounting, for Taste
+              </p>
             </div>
           </div>
           {authUser && (
@@ -857,6 +862,26 @@ export default function ShapeMusicHome() {
             >
               Who is Abre?
             </button>
+            <button
+              onClick={() => { setShowTastebuds(true); markInfoRead('tastebuds') }}
+              className={`text-xs px-2 py-1 border rounded ${
+                readInfoButtons.has('tastebuds')
+                  ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+              }`}
+            >
+              Tastebuds
+            </button>
+            <button
+              onClick={() => { setShowTasteBuds(true); markInfoRead('tasteBuds') }}
+              className={`text-xs px-2 py-1 border rounded ${
+                readInfoButtons.has('tasteBuds')
+                  ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+              }`}
+            >
+              Taste Buds
+            </button>
             {shape && (
               <button
                 onClick={() => { setShowWaysToUse(true); markInfoRead('waysToUse') }}
@@ -879,16 +904,19 @@ export default function ShapeMusicHome() {
               <h2 className="text-xl font-bold mb-4">What is Shape Music?</h2>
               <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
                 <p>
-                  Shape Music maps your music preferences across 10 dimensions - not genres, but <em>how</em> you experience music.
+                  We're attempting to discover things that don't seem to be discovered yet — how to "shape up" a human listener, and how to "shape up" a song.
                 </p>
                 <p>
-                  Things like your need for energy, appreciation for complexity, preference for lyrical depth, and openness to experimentation.
+                  Together, we're going to dismiss the notion that there is no accounting for taste. This <em>is</em> accounting, for taste.
                 </p>
                 <p>
-                  Your "music shape" predicts what you'll enjoy better than genre labels ever could. A folk album and an electronic track might share more DNA than two rock albums.
+                  Shape Music maps your music preferences across multiple dimensions — not genres, but <em>how</em> you experience music. Things like your need for energy, appreciation for complexity, preference for lyrical depth, and openness to experimentation.
                 </p>
                 <p>
-                  As you rate music and refine your shape, we learn from listeners with similar shapes to make better predictions - closing the loop between recommendation and outcome.
+                  Your "home base" on each dimension can change over time. What you can flex on changes too, with an energy cost. These are things we'll learn together.
+                </p>
+                <p>
+                  As you rate music and refine your shape, we learn from listeners with similar shapes to make better predictions — closing the loop between recommendation and outcome.
                 </p>
               </div>
               <button
@@ -967,6 +995,64 @@ export default function ShapeMusicHome() {
               </div>
               <button
                 onClick={() => setShowWaysToUse(false)}
+                className="mt-4 w-full py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tastebuds Popup - The dimensions themselves */}
+        {showTastebuds && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowTastebuds(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+              <h2 className="text-xl font-bold mb-4">Tastebuds</h2>
+              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                <p>
+                  <strong>Tastebuds</strong> are the dimensions of your shape — the axes along which we measure how you experience music.
+                </p>
+                <p>
+                  Just like your tongue has taste buds for sweet, salty, sour, bitter, and umami, your musical palate has "tastebuds" for things like energy, complexity, emotional rawness, and sonic experimentation.
+                </p>
+                <p>
+                  Each tastebud has a "home base" — where you naturally sit on that dimension. But you can flex away from home base, with an energy cost. Some days you have more capacity to stretch than others.
+                </p>
+                <p>
+                  Your tastebuds aren't fixed. They can shift over time as you grow, as life changes, as you're exposed to new sounds. We're learning together what causes these shifts and how to predict them.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTastebuds(false)}
+                className="mt-4 w-full py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Taste Buds Popup - Other listeners with similar shapes */}
+        {showTasteBuds && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowTasteBuds(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+              <h2 className="text-xl font-bold mb-4">Taste Buds</h2>
+              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                <p>
+                  <strong>Taste Buds</strong> are other listeners whose shapes resemble yours — people who experience music the way you do.
+                </p>
+                <p>
+                  When we make predictions about what you'll enjoy, we look at what your Taste Buds loved and hated. Their hits and misses teach us about yours, and vice versa.
+                </p>
+                <p>
+                  This is different from "people who liked this also liked that" — we're not matching on content, we're matching on the <em>shape</em> of how you listen. Your Taste Bud might have completely different favorite artists, but they process music the same way you do.
+                </p>
+                <p>
+                  As more people use Shape Music, your network of Taste Buds grows, and our predictions get sharper. Every outcome you report helps everyone with a similar shape.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTasteBuds(false)}
                 className="mt-4 w-full py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
               >
                 Got it

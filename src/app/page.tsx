@@ -1,5 +1,26 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+
+export default function Home() {
+  const router = useRouter()
+
+  useEffect(() => {
+    router.replace('/shapemusic')
+  }, [router])
+
+  return (
+    <main className="min-h-screen p-8 max-w-2xl mx-auto">
+      <p>Redirecting to Shape Music...</p>
+    </main>
+  )
+}
+
+// Original Shape Theory code preserved below for reference
+// This app now redirects to /shapemusic as the primary experience
+
+/*
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
@@ -91,7 +112,7 @@ function clearChatSession() {
   localStorage.removeItem(CHAT_STORAGE_KEY)
 }
 
-export default function Home() {
+function OriginalHome() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState('')
@@ -1149,3 +1170,4 @@ export default function Home() {
     </main>
   )
 }
+*/
