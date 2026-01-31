@@ -242,15 +242,32 @@ YOUR VOICE:
 
 Keep responses conversational, not essay-like. This is a dialogue between friends who happen to be nerding out about dimensional analysis.${shapebaseContext}`
 
+    // Filter messages to ensure we start with a user message (required by Claude API)
+    // Skip any leading assistant messages (like welcome greetings stored in frontend)
+    let filteredMessages = messages.map((m: any) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content
+    }))
+
+    // Remove leading assistant messages
+    while (filteredMessages.length > 0 && filteredMessages[0].role === 'assistant') {
+      filteredMessages = filteredMessages.slice(1)
+    }
+
+    // If no messages left after filtering, return an error
+    if (filteredMessages.length === 0) {
+      return NextResponse.json(
+        { error: 'No user message provided' },
+        { status: 400 }
+      )
+    }
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
       tools: tools,
-      messages: messages.map((m: any) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content
-      }))
+      messages: filteredMessages
     })
 
     // Extract text and tool calls
