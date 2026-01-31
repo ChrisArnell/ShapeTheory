@@ -8,7 +8,40 @@ interface TasteBud {
   match_percent: number
   bud_bio: string | null
   actual_user_id: string
+  isDemo?: boolean
 }
+
+// Demo taste buds to show when no real users exist yet
+const DEMO_TASTE_BUDS: TasteBud[] = [
+  {
+    user_id_hash: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6',
+    match_percent: 87.3,
+    bud_bio: 'Music enthusiast who loves discovering hidden gems. Into everything from ambient electronica to post-punk revival.',
+    actual_user_id: 'demo-1',
+    isDemo: true
+  },
+  {
+    user_id_hash: 'b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7',
+    match_percent: 74.5,
+    bud_bio: 'Vinyl collector, concert junkie. My shape says "chill" but my playlists say "chaos".',
+    actual_user_id: 'demo-2',
+    isDemo: true
+  },
+  {
+    user_id_hash: 'c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8',
+    match_percent: 68.9,
+    bud_bio: null,
+    actual_user_id: 'demo-3',
+    isDemo: true
+  },
+  {
+    user_id_hash: 'd4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9',
+    match_percent: 52.1,
+    bud_bio: 'Genre-agnostic listener. If it moves me, I\'m in.',
+    actual_user_id: 'demo-4',
+    isDemo: true
+  },
+]
 
 interface TasteBudsTableProps {
   userId: string
@@ -37,9 +70,16 @@ export default function TasteBudsTable({ userId, userShape, appType = 'music' }:
     setLoading(true)
     try {
       const buds = await getTasteBuds(userId, userShape, appType)
-      setTasteBuds(buds)
+      // If no real users, show demo data
+      if (buds.length === 0) {
+        setTasteBuds(DEMO_TASTE_BUDS)
+      } else {
+        setTasteBuds(buds)
+      }
     } catch (err) {
       console.error('Error loading taste buds:', err)
+      // Show demo data on error as well
+      setTasteBuds(DEMO_TASTE_BUDS)
     }
     setLoading(false)
   }
@@ -71,6 +111,8 @@ export default function TasteBudsTable({ userId, userShape, appType = 'music' }:
     return 'text-gray-500 dark:text-gray-400'
   }
 
+  const isShowingDemo = tasteBuds.length > 0 && tasteBuds[0]?.isDemo === true
+
   if (loading) {
     return (
       <div className="border dark:border-gray-700 rounded-lg p-4">
@@ -88,6 +130,11 @@ export default function TasteBudsTable({ userId, userShape, appType = 'music' }:
         >
           <span className="font-medium">
             Taste Buds ({tasteBuds.length})
+            {isShowingDemo && (
+              <span className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded">
+                Preview
+              </span>
+            )}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -107,13 +154,7 @@ export default function TasteBudsTable({ userId, userShape, appType = 'music' }:
 
         {expanded && (
           <div className="bg-white/90 dark:bg-gray-900/90">
-            {tasteBuds.length === 0 ? (
-              <div className="px-4 py-6 text-center text-gray-500">
-                <p>No other users yet. You're the first!</p>
-                <p className="text-sm mt-1">As more people join, you'll see your Taste Buds here.</p>
-              </div>
-            ) : (
-              <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-64 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
                     <tr>
@@ -148,10 +189,13 @@ export default function TasteBudsTable({ userId, userShape, appType = 'music' }:
                   </tbody>
                 </table>
               </div>
-            )}
 
             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-xs text-gray-500">
-              Match % calculated using shape similarity across all dimensions
+              {isShowingDemo ? (
+                <span>These are example Taste Buds. Real users will appear as more people join!</span>
+              ) : (
+                <span>Match % calculated using shape similarity across all dimensions</span>
+              )}
             </div>
           </div>
         )}
