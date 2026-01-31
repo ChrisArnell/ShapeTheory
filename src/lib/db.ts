@@ -674,6 +674,63 @@ export async function getContentWithHierarchy(contentId: string) {
   return hierarchy.reverse() // [show, season, episode]
 }
 
+// Get taste buds (other users with shape similarity percentages)
+export async function getTasteBuds(
+  userId: string,
+  userShape: Record<string, number>,
+  appType: AppType = 'music'
+) {
+  const { data, error } = await supabase
+    .rpc('get_taste_buds', {
+      current_user_id: userId,
+      current_shape: userShape,
+      app_type_filter: appType
+    })
+
+  if (error) {
+    console.error('Error fetching taste buds:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Get user's bud bio
+export async function getBudBio(userId: string, appType: AppType = 'music') {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('bud_bio')
+    .eq('user_id', userId)
+    .eq('app_type', appType)
+    .single()
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching bud bio:', error)
+  }
+
+  return data?.bud_bio || null
+}
+
+// Save user's bud bio
+export async function saveBudBio(userId: string, budBio: string, appType: AppType = 'music') {
+  const { error } = await supabase
+    .from('user_profiles')
+    .upsert({
+      user_id: userId,
+      app_type: appType,
+      bud_bio: budBio,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'user_id,app_type'
+    })
+
+  if (error) {
+    console.error('Error saving bud bio:', error)
+    return false
+  }
+  return true
+}
+
 // Get prediction accuracy stats for a user
 export async function getPredictionStats(userId: string, appType: AppType = 'entertainment') {
   const { data, error } = await supabase
