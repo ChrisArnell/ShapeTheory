@@ -348,15 +348,27 @@ export default function ShapeMusicHome() {
       if (loadedUserIdRef.current === appUserId) {
         return
       }
+      // Clear previous user's data before loading new user's data
+      // This prevents data leakage when switching accounts
+      setShape(null)
+      setActivePredictions([])
+      setCompletedPredictions([])
+      setChatMessages([])
+      setChatSessionRestored(false)
+
       loadedUserIdRef.current = appUserId
       setShapeLoading(true)
       setShapeChecked(false)
       loadExistingShape()
     } else {
-      // User logged out - reset shape state and tracked user ID
+      // User logged out - reset ALL user-specific state
       loadedUserIdRef.current = null
       setShapeChecked(false)
       setShape(null)
+      setActivePredictions([])
+      setCompletedPredictions([])
+      setChatMessages([])
+      setChatSessionRestored(false)
     }
   }, [appUserId])
 
