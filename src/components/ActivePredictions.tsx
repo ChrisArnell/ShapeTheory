@@ -107,36 +107,42 @@ export default function ActivePredictions({
 
   return (
     <div className="border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
-      {/* Suggested by Abre - needs lock-in */}
+      {/* Suggestion Box - prominent display for Abre's suggestions */}
       {suggested.length > 0 && (
-        <div className="mb-3">
-          <div className="text-xs text-gray-500 mb-2">Abre suggested:</div>
-          <div className="flex flex-wrap gap-2">
-            {suggested.map(pred => (
-              <div
-                key={pred.id}
-                className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2"
-              >
-                <span>{contentTypeIcon(pred.content_type)}</span>
-                <span className="font-medium text-sm">{displayTitle(pred)}</span>
-                <span className="text-xs text-blue-600 dark:text-blue-400">
-                  {pred.hit_probability}%
-                </span>
-                <button
-                  onClick={() => onLockIn(pred)}
-                  className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                >
-                  Lock in
-                </button>
-                <button
-                  onClick={() => onDismiss(pred.id)}
-                  className="text-xs text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
+        <div className="mb-3 space-y-2">
+          {suggested.map(pred => (
+            <div
+              key={pred.id}
+              className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/40 dark:to-purple-900/40 border-2 border-blue-300 dark:border-blue-700 rounded-lg p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{contentTypeIcon(pred.content_type)}</span>
+                  <div>
+                    <div className="font-semibold text-base">{displayTitle(pred)}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Abre thinks <span className="font-medium text-blue-600 dark:text-blue-400">{pred.hit_probability}%</span> chance you'll like this
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onLockIn(pred)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
+                  >
+                    Lock it in
+                  </button>
+                  <button
+                    onClick={() => onDismiss(pred.id)}
+                    className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm"
+                    title="Dismiss suggestion"
+                  >
+                    Not now
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 

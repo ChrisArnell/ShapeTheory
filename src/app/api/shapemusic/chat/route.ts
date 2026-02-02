@@ -71,7 +71,7 @@ const tools: Anthropic.Messages.Tool[] = [
   },
   {
     name: "create_prediction",
-    description: "Create a prediction when (1) the user commits to listening to something you recommended, OR (2) the user makes their OWN prediction about something they're about to listen to. When user_initiated is true, ALWAYS provide BOTH the user's probability AND your own ai_probability so we can track both predictions.",
+    description: "Create a suggestion whenever you recommend music. Call this IMMEDIATELY when you suggest something - it populates the suggestion box in the UI where the user can lock it in or dismiss it. Also use when the user makes their OWN prediction about something they're about to listen to. When user_initiated is true, ALWAYS provide BOTH the user's probability AND your own ai_probability so we can track both predictions.",
     input_schema: {
       type: "object",
       properties: {
@@ -227,11 +227,9 @@ We predict the probability of a HIT - meaning the music "works" for them:
 - MISS: "not for me", "couldn't get through it", "not feeling it"
 - FENCE: "could be good in a different mood", "some tracks yes, some no"
 
-When you recommend something, offer to track it:
-- "If you're going to listen tonight, I can lock in that prediction"
-- "Want me to add that to your list? I'm calling it 75% hit probability for you."
-
-When they say yes, or say they'll check something out, use create_prediction.
+IMPORTANT: When you recommend music, ALWAYS call create_prediction for each suggestion.
+This populates the suggestion box in the UI where the user can lock it in or dismiss it.
+Do NOT wait for the user to say "lock it in" - suggestions appear automatically for them to decide.
 
 USER-INITIATED PREDICTIONS:
 Users can also make their OWN predictions! If they say something like:
