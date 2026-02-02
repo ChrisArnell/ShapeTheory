@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import PlayInSpotify from './PlayInSpotify'
 
 interface Prediction {
   id: string
@@ -122,6 +123,14 @@ export default function ActivePredictions({
                 <span className="text-xs text-blue-600 dark:text-blue-400">
                   {pred.hit_probability}%
                 </span>
+                {(pred.content_type === 'album' || pred.content_type === 'song') && (
+                  <PlayInSpotify
+                    title={pred.title}
+                    artist={pred.artist}
+                    contentType={pred.content_type as 'song' | 'album'}
+                    compact
+                  />
+                )}
                 <button
                   onClick={() => onLockIn(pred)}
                   className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
@@ -155,6 +164,14 @@ export default function ActivePredictions({
                 <span className="text-xs text-green-600 dark:text-green-400">
                   {pred.hit_probability}%
                 </span>
+                {(pred.content_type === 'album' || pred.content_type === 'song') && (
+                  <PlayInSpotify
+                    title={pred.title}
+                    artist={pred.artist}
+                    contentType={pred.content_type as 'song' | 'album'}
+                    compact
+                  />
+                )}
 
                 {deleteConfirmFor === pred.id ? (
                   <div className="flex items-center gap-1">
