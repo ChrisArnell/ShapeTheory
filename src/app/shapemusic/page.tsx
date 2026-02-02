@@ -21,7 +21,6 @@ import {
 import ShapeRadar from '@/components/ShapeRadar'
 import ActivePredictions from '@/components/ActivePredictions'
 import TasteBudsTable from '@/components/TasteBudsTable'
-import SpotifyConnect from '@/components/SpotifyConnect'
 
 const APP_TYPE: AppType = 'music'
 
@@ -854,9 +853,8 @@ export default function ShapeMusicHome() {
         </div>
 
         {authUser && (
-          <div className="flex items-center gap-4 mb-8 flex-wrap">
+          <div className="flex items-center gap-4 mb-8">
             <p className="text-sm text-gray-500">{authUser.email}</p>
-            <SpotifyConnect compact />
             <button
               onClick={() => { setShowAppInfo(true); markInfoRead('appInfo') }}
               className={`text-xs px-2 py-1 border rounded ${
