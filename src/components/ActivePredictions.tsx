@@ -141,7 +141,10 @@ export default function ActivePredictions({
                 <div className="flex items-center gap-2">
                   {isSpotifyContent(pred.content_type) && (
                     <button
-                      onClick={() => openInSpotify(pred.title, pred.artist)}
+                      onClick={() => {
+                        openInSpotify(pred.title, pred.artist)
+                        onLockIn(pred)
+                      }}
                       className="px-3 py-2 bg-[#1DB954] text-white rounded-lg hover:bg-[#1ed760] text-sm transition-colors flex items-center gap-1"
                       title="Play in Spotify"
                     >
