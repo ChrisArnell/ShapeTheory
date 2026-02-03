@@ -71,7 +71,7 @@ const tools: Anthropic.Messages.Tool[] = [
   },
   {
     name: "create_prediction",
-    description: "Create a suggestion whenever you recommend music. Call this IMMEDIATELY when you suggest something - it populates the suggestion box in the UI where the user can lock it in or dismiss it. Also use when the user makes their OWN prediction about something they're about to listen to. When user_initiated is true, ALWAYS provide BOTH the user's probability AND your own ai_probability so we can track both predictions.",
+    description: "CALL THIS FOR EVERY SONG YOU MENTION. This populates the suggestion box in the UI. If you mention 3 songs, call this 3 times. If you mention 5 songs, call this 5 times. The UI ONLY shows songs you call this tool for - text mentions alone won't appear. Also use when the user makes their OWN prediction. When user_initiated is true, ALWAYS provide BOTH the user's probability AND your own ai_probability.",
     input_schema: {
       type: "object",
       properties: {
@@ -228,14 +228,22 @@ We predict the probability of a HIT - meaning the music "works" for them:
 - MISS: "not for me", "couldn't get through it", "not feeling it"
 - FENCE: "could be good in a different mood", "some tracks yes, some no"
 
-IMPORTANT - ALWAYS DO BOTH:
-1. In your chat message, NAME each song with your reasoning: "Pink + White (Frank Ocean) - 92% match. The atmospheric production and emotional depth align perfectly with your shape."
-2. ALSO call create_prediction for each suggestion to populate the suggestion box.
+CRITICAL - CALL create_prediction FOR EVERY SONG:
+You MUST call the create_prediction tool for EVERY SINGLE SONG you mention in your response. No exceptions.
 
-The chat explanation helps them understand WHY something fits their shape. The suggestion box lets them lock it in for tracking.
+If you mention 3 songs in your text, you MUST make 3 separate create_prediction tool calls.
+If you mention 5 songs in your text, you MUST make 5 separate create_prediction tool calls.
+
+This is non-negotiable. The suggestion box in the UI is populated ONLY by your tool calls, not by parsing your text. If you don't call create_prediction, the song won't appear for the user to lock in.
+
+EVERY response that mentions songs should include:
+1. Your chat text explaining each song and why it matches (or doesn't match) their shape
+2. A create_prediction tool call for EACH song mentioned - this populates the suggestion box
+
+Example: If you recommend "Cellophane (FKA twigs) - 85%", "Hearing Damage (Thom Yorke) - 78%", and "Get Got (Death Grips) - 30%", you must make THREE create_prediction calls, one for each song.
 
 MULTIPLE SUGGESTIONS:
-When asked for multiple recommendations ("give me three songs", "suggest a couple tracks", "recommend two songs"), ALWAYS deliver the requested number. Each suggestion should have both a chat explanation AND a create_prediction call. If they ask for three, give three. If they ask for "a couple", give two. Don't just give one and ask if they want more.
+When asked for multiple recommendations, deliver the requested number. Each suggestion needs both a chat explanation AND its own create_prediction call. If they ask for three, give three songs AND three tool calls. Don't just give one and ask if they want more.
 
 USER-INITIATED PREDICTIONS:
 Users can also make their OWN predictions! If they say something like:
