@@ -20,11 +20,12 @@ interface ActivePredictionsProps {
   onDelete: (predictionId: string) => void
 }
 
-// Feedback is requested when predictions are surprising:
+// Feedback is requested when predictions are surprising OR for fence outcomes:
 // - Hit when prediction was < 60% (unexpected success)
 // - Miss when prediction was > 40% (unexpected failure)
+// - Fence always (helps understand ambiguity)
 function shouldRequestFeedback(outcome: 'hit' | 'miss' | 'fence', hitProbability: number): boolean {
-  if (outcome === 'fence') return false
+  if (outcome === 'fence') return true  // Always ask for fence
   if (outcome === 'hit' && hitProbability < 60) return true
   if (outcome === 'miss' && hitProbability > 40) return true
   return false
@@ -32,7 +33,7 @@ function shouldRequestFeedback(outcome: 'hit' | 'miss' | 'fence', hitProbability
 
 interface FeedbackState {
   predictionId: string
-  outcome: 'hit' | 'miss'
+  outcome: 'hit' | 'miss' | 'fence'
   title: string
   hitProbability: number
 }
@@ -54,10 +55,10 @@ export default function ActivePredictions({
     setShowOutcomeFor(null)
 
     if (shouldRequestFeedback(outcome, pred.hit_probability)) {
-      // Show feedback modal for surprising outcomes
+      // Show feedback modal for surprising outcomes or fence
       setFeedbackState({
         predictionId: pred.id,
-        outcome: outcome as 'hit' | 'miss',
+        outcome: outcome,
         title: pred.title,
         hitProbability: pred.hit_probability
       })
@@ -268,7 +269,7 @@ export default function ActivePredictions({
         </div>
       )}
 
-      {/* Feedback Modal for surprising outcomes */}
+      {/* Feedback Modal for surprising outcomes or fence */}
       {feedbackState && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -279,7 +280,11 @@ export default function ActivePredictions({
             onClick={e => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold mb-2">
-              {feedbackState.outcome === 'hit' ? 'Unexpected hit!' : 'Unexpected miss!'}
+              {feedbackState.outcome === 'hit'
+                ? 'Unexpected hit!'
+                : feedbackState.outcome === 'fence'
+                ? 'On the fence'
+                : 'Unexpected miss!'}
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
               <strong>{feedbackState.title}</strong> was predicted at {feedbackState.hitProbability}%
@@ -287,6 +292,10 @@ export default function ActivePredictions({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               {feedbackState.outcome === 'hit'
                 ? "What did you like about this that we might not be capturing?"
+                : feedbackState.outcome === 'fence'
+                ? feedbackState.hitProbability < 50
+                  ? "What did you like about this that we might not be capturing?"
+                  : "What didn't you like that we might not be capturing?"
                 : "What didn't you like that we might not be capturing?"}
             </p>
             <textarea
