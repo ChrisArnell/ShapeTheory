@@ -712,12 +712,12 @@ export default function ShapeMusicHome() {
     setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
   }
 
-  const handleRecordOutcome = async (predictionId: string, outcome: 'hit' | 'miss' | 'fence') => {
+  const handleRecordOutcome = async (predictionId: string, outcome: 'hit' | 'miss' | 'fence', notes?: string) => {
     const prediction = activePredictions.find(p => p.id === predictionId)
     if (!prediction?.dbId) return
 
     const outcomeValue = outcome === 'hit' ? 10 : outcome === 'fence' ? 5 : 0
-    const success = await recordOutcome(prediction.dbId, outcomeValue)
+    const success = await recordOutcome(prediction.dbId, outcomeValue, undefined, notes)
 
     if (success) {
       setCompletedPredictions(prev => [{
@@ -731,9 +731,21 @@ export default function ShapeMusicHome() {
 
       setActivePredictions(prev => prev.filter(p => p.id !== predictionId))
 
-      if (outcome !== 'fence' && shape && appUserId) {
-        const wasHit = outcome === 'hit'
-        const outcomeMessage = `[PREDICTION OUTCOME: "${prediction.title}" - predicted ${prediction.hit_probability}%, result: ${wasHit ? 'HIT' : 'MISS'}. Keep it brief (1-2 sentences). ${wasHit ? 'Quick acknowledgment, maybe mention ONE dimension that fits.' : 'Brief, warm response. Ask what didn\'t land.'} Don't be over the top.]`
+      // Send outcome to Abre (including fence now)
+      if (shape && appUserId) {
+        const outcomeLabel = outcome === 'hit' ? 'HIT' : outcome === 'fence' ? 'FENCE' : 'MISS'
+        const notesSection = notes ? ` User comment: "${notes}"` : ''
+
+        let instruction = ''
+        if (outcome === 'hit') {
+          instruction = 'Quick acknowledgment, maybe mention ONE dimension that fits.'
+        } else if (outcome === 'miss') {
+          instruction = "Brief, warm response. Ask what didn't land."
+        } else {
+          instruction = 'Acknowledge the mixed feelings. The comment explains what worked or didn\'t.'
+        }
+
+        const outcomeMessage = `[PREDICTION OUTCOME: "${prediction.title}" - predicted ${prediction.hit_probability}%, result: ${outcomeLabel}.${notesSection} Keep it brief (1-2 sentences). ${instruction} Don't be over the top.]`
 
         const newMessages = [...chatMessages, { role: 'user', content: outcomeMessage }]
 
