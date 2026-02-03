@@ -378,7 +378,17 @@ Keep responses conversational, not essay-like. This is a dialogue between friend
       for (const block of followUpResponse.content) {
         if (block.type === 'text') {
           textResponse = block.text
-          break
+        } else if (block.type === 'tool_use' && block.name === 'create_prediction') {
+          // Capture any additional predictions from the follow-up response
+          newPredictions.push(block.input as {
+            title: string
+            artist?: string
+            content_type: string
+            hit_probability: number
+            ai_probability?: number
+            reasoning?: string
+            user_initiated?: boolean
+          })
         }
       }
     }

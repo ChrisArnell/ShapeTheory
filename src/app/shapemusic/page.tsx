@@ -228,12 +228,14 @@ export default function ShapeMusicHome() {
   // Track the user ID we've loaded shape for to prevent duplicate loads
   const loadedUserIdRef = useRef<string | null>(null)
 
-  // Ref for auto-scrolling chat to bottom
-  const chatEndRef = useRef<HTMLDivElement>(null)
+  // Ref for auto-scrolling chat to bottom (scroll container, not page)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
   }, [chatMessages, chatLoading])
 
   // Check auth state and get/create music user
@@ -1148,7 +1150,7 @@ export default function ShapeMusicHome() {
           <div className="space-y-6">
             {/* Chat Interface */}
             <div className="border dark:border-gray-700 rounded-lg overflow-hidden">
-              <div className="h-72 overflow-y-auto p-4 space-y-3">
+              <div ref={chatContainerRef} className="h-72 overflow-y-auto p-4 space-y-3">
                 {chatMessages.map((msg, i) => (
                   <div
                     key={i}
@@ -1166,7 +1168,6 @@ export default function ShapeMusicHome() {
                     Thinking...
                   </div>
                 )}
-                <div ref={chatEndRef} />
               </div>
               <div className="border-t dark:border-gray-700 p-3 flex gap-2">
                 <input
