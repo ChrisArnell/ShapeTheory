@@ -183,7 +183,15 @@ async function searchMusicBrainz(query: string, type?: string, artist?: string):
           })
         }
 
-        for (const song of songs.slice(0, 3)) {
+        // Filter to songs under 5 minutes (300,000ms) and take top 3
+        const MAX_DURATION_MS = 300000 // 5 minutes
+        const filteredSongs = songs.filter((song: any) => {
+          // If no length data, include it (benefit of the doubt)
+          if (!song.length) return true
+          return song.length <= MAX_DURATION_MS
+        })
+
+        for (const song of filteredSongs.slice(0, 3)) {
           const artistName = song['artist-credit']?.[0]?.name || 'Unknown Artist'
           results.push({
             title: `${song.title} - ${artistName}`,
