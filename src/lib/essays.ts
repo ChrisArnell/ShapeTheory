@@ -33,6 +33,10 @@ export const ALL_ESSAY_URLS = [
   'https://shapetheoryesvn.substack.com/p/the-law-of-adaptive-system-progress',
   'https://shapetheoryesvn.substack.com/p/cookies-for-things-that-matter',
   'https://shapetheoryesvn.substack.com/p/cookies-for-cancer',
+  'https://shapetheoryesvn.substack.com/p/the-three-hidden-disagreements',
+  'https://shapetheoryesvn.substack.com/p/closing-the-loop-for-everything',
+  'https://shapetheoryesvn.substack.com/p/accumulated-wisdom',
+  'https://shapetheoryesvn.substack.com/p/what-ai-is-and-isnt',
 ]
 
 function extractTag(xml: string, tag: string): string {
