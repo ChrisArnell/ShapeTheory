@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import {
@@ -929,6 +930,12 @@ export default function ShapeMusicHome() {
                 Ways to use
               </button>
             )}
+            <Link
+              href="/essays"
+              className="text-xs px-2 py-1 border rounded border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              Essays
+            </Link>
           </div>
         )}
 
