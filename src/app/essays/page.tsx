@@ -17,9 +17,9 @@ export default function EssaysPage() {
         </p>
       </div>
 
-      {/* Essays list — newest first */}
+      {/* Essays list — oldest first */}
       <ol className="space-y-4">
-        {[...essays].reverse().map((essay, idx) => (
+        {essays.map((essay, idx) => (
           <li key={essay.slug}>
             <a
               href={essay.link}
@@ -29,7 +29,7 @@ export default function EssaysPage() {
             >
               <div className="flex items-start gap-3">
                 <span className="text-gray-400 font-mono text-sm mt-0.5 shrink-0">
-                  {String(essays.length - idx).padStart(2, '0')}
+                  {String(idx + 1).padStart(2, '0')}
                 </span>
                 <div className="min-w-0">
                   <span className="font-medium group-hover:text-blue-600 transition-colors">
