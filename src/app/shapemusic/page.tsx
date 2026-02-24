@@ -880,7 +880,7 @@ export default function ShapeMusicHome() {
             <p className="text-sm text-gray-500">{authUser.email}</p>
             <button
               onClick={() => { setShowAppInfo(true); markInfoRead('appInfo') }}
-              className={`text-xs px-2 py-1 border rounded ${
+              className={`text-xs px-2 py-1 border rounded min-w-[90px] text-center ${
                 readInfoButtons.has('appInfo')
                   ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
                   : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
@@ -890,7 +890,7 @@ export default function ShapeMusicHome() {
             </button>
             <button
               onClick={() => { setShowAbreInfo(true); markInfoRead('abreInfo') }}
-              className={`text-xs px-2 py-1 border rounded ${
+              className={`text-xs px-2 py-1 border rounded min-w-[90px] text-center ${
                 readInfoButtons.has('abreInfo')
                   ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
                   : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
@@ -900,7 +900,7 @@ export default function ShapeMusicHome() {
             </button>
             <button
               onClick={() => { setShowTastebuds(true); markInfoRead('tastebuds') }}
-              className={`text-xs px-2 py-1 border rounded ${
+              className={`text-xs px-2 py-1 border rounded min-w-[90px] text-center ${
                 readInfoButtons.has('tastebuds')
                   ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
                   : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
@@ -910,7 +910,7 @@ export default function ShapeMusicHome() {
             </button>
             <button
               onClick={() => { setShowTasteBuds(true); markInfoRead('tasteBuds') }}
-              className={`text-xs px-2 py-1 border rounded ${
+              className={`text-xs px-2 py-1 border rounded min-w-[90px] text-center ${
                 readInfoButtons.has('tasteBuds')
                   ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
                   : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
@@ -921,7 +921,7 @@ export default function ShapeMusicHome() {
             {shape && (
               <button
                 onClick={() => { setShowWaysToUse(true); markInfoRead('waysToUse') }}
-                className={`text-xs px-2 py-1 border rounded ${
+                className={`text-xs px-2 py-1 border rounded min-w-[90px] text-center ${
                   readInfoButtons.has('waysToUse')
                     ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
                     : 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
@@ -932,7 +932,7 @@ export default function ShapeMusicHome() {
             )}
             <Link
               href="/essays"
-              className="text-xs px-2 py-1 border rounded border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="text-xs px-2 py-1 border rounded min-w-[90px] text-center border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               Essays
             </Link>
